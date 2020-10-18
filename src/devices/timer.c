@@ -95,12 +95,17 @@ timer_elapsed (int64_t then)
 	return timer_ticks () - then;
 }
 
+/*
+* Order the list based on wake-up time and priority
+*/
 static bool
-time_less_func (const struct list_elem *a, const struct list_elem *b, void *aux)
+time_less_func (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
 	return list_entry (a,
 	struct thread,sleep_elem)->wake_up_time < list_entry (b,
-	struct thread,sleep_elem)->wake_up_time;
+	struct thread,sleep_elem)->wake_up_time || list_entry (a,
+	struct thread,sleep_elem)->priority > list_entry (b,
+	struct thread,sleep_elem)->priority;
 }
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
