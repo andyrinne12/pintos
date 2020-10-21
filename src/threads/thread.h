@@ -105,6 +105,12 @@ struct thread
 	struct list_elem sleep_elem;    /* List element for sleeping list */
 	int nice;
 	int recent_cpu;
+	
+	struct list_elem sleep_elem;              /* List element for sleeping list */
+
+	struct list donations;							/* list of threads that have donated priorities to this thread */
+	struct list_elem donation_elem;      /* element of list donations */
+	struct lock *thread_waits_lock;				/* threads waits for a lock*/
 };
 
 /* If false (default), use round-robin scheduler.

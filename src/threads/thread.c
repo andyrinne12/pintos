@@ -309,12 +309,19 @@ thread_unblock (struct thread *t)
 
   ASSERT (is_thread (t));
 
-  old_level = intr_disable ();
-  ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, &priority_comp_func,
-                       NULL);
-  t->status = THREAD_READY;
-  intr_set_level (old_level);
+	old_level = intr_disable ();
+	ASSERT (t->status == THREAD_BLOCKED);
+	list_insert_ordered (&ready_list, &t->elem, &priority_comp_func,
+	                     NULL);
+	t->status = THREAD_READY;
+	struct thread *cur_thread = running_thread();
+	int new_prio = t->priority;
+	int cur_prio = cur_thread->priority;
+
+	intr_set_level (old_level);
+
+	if(cur_thread != idle_thread && new_prio > cur_prio)
+		thread_yield();
 }
 
 /* Returns the name of the running thread. */
@@ -412,32 +419,45 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  lock_acquire (&set_priority_lock);
-  int curr_priority = thread_current ()->priority;
-  thread_current ()->priority = new_priority;
-  if (curr_priority > new_priority)
-  {
-    thread_yield ();
-  }
-  lock_release (&set_priority_lock);
+	lock_acquire (&set_priority_lock);
+
+	int old_priority = thread_current ()->priority;
+	thread_current ()->priority = new_priority;
+// 	list_sort(&ready_list, priority_comp_func, NULL);
+
+	if (old_priority > new_priority)
+	{
+		thread_yield ();
+	}
+
+	lock_release (&set_priority_lock);
+}
+
+int
+thread_get_priority_helper (struct thread *t)
+{
+	if(list_empty(&t->donations)) return t->priority;
+	else{
+		int priority = 0;
+		for(struct list_elem *e = list_begin(&t->donations); e != list_end(&t->donations); e = list_next(e)){
+			struct thread *thread_donated = list_entry(e, struct thread, donation_elem);
+			int updated_priority = thread_get_priority_helper(thread_donated);
+			if(updated_priority > priority) priority = updated_priority;
+		}
+		return priority;
+	}
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+//	return thread_current ()->priority;
+//	the highest donanted priority is returned
+return thread_get_priority_helper(thread_current());
+	//return running_thread ()->priority;
 }
-// ---------------------------------------------------------------------
-int
-priority_bounds (int priority)
-{
-  if (priority < PRI_MIN)
-    return PRI_MIN;
-  if (priority > PRI_MAX)
-    return PRI_MAX;
-  return priority;
-}
+
 
 /* Sets the current thread's nice value to NICE. */
 void
@@ -571,9 +591,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
-  intr_set_level (old_level);
+	list_init (&t->donations);
+	t->thread_waits_lock = NULL;
+	old_level = intr_disable ();
+	list_push_back (&all_list, &t->allelem);
+	intr_set_level (old_level);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
