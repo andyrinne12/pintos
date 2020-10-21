@@ -102,6 +102,10 @@ struct thread
 	unsigned magic;                     /* Detects stack overflow. */
 
 	int64_t wake_up_time;               /* Sleeping wake up time */
+	struct list_elem sleep_elem;    /* List element for sleeping list */
+	int nice;
+	int recent_cpu;
+	
 	struct list_elem sleep_elem;              /* List element for sleeping list */
 
 	struct list donations;							/* list of threads that have donated priorities to this thread */
@@ -150,5 +154,9 @@ int thread_get_load_avg (void);
 bool
 priority_comp_func (const struct list_elem *a, const struct list_elem *b,
                     void *aux UNUSED);
+
+
+int priority_bounds (int priority);
+void recent_cpu_function (struct thread *thread, void *aux UNUSED);
 
 #endif /* threads/thread.h */
