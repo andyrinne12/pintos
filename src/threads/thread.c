@@ -12,6 +12,7 @@
 #include "../threads/synch.h"
 #include "../threads/vaddr.h"
 #include "fixed-point.h"
+#include "../devices/timer.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -23,9 +24,12 @@
 #define THREAD_MAGIC 0xcd6abf4b
 
 #define NICE_COEFFICIENT 2
-#define RECENT_CPU_COEFFICIENT (1/4)
-#define LOAD_COEFFICIENT (59/60)
-#define READY_T_COEFFICIENT (1/60)
+//#define RECENT_CPU_COEFFICIENT (1/4)
+//#define LOAD_COEFFICIENT (59/60)
+//#define READY_T_COEFFICIENT (1/60)
+#define RECENT_CPU_COEFFICIENT DIV_FIXED_FIXED(INT_TO_FIXED(1), INT_TO_FIXED(4))
+#define LOAD_COEFFICIENT       DIV_FIXED_FIXED(INT_TO_FIXED(59), INT_TO_FIXED(60))
+#define READY_T_COEFFICIENT    DIV_FIXED_FIXED(INT_TO_FIXED(1), INT_TO_FIXED(60))
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -148,14 +152,14 @@ threads_ready (void)
 
 //  ------------------------------------------------------------------------
 
-static int32_t load_avg = INT_TO_FIXED(0);
+int32_t load_avg = INT_TO_FIXED(0);
 
 void recent_cpu_function (struct thread *thread, void *aux UNUSED)
 {
   const int32_t doubled_load_avg = MUL_FIXED_INT(load_avg, 2);
   const int32_t fraction_load_avg = DIV_FIXED_FIXED(doubled_load_avg,
                               ADD_FIXED_INT ( doubled_load_avg,1));
-  thread->recent_cpu = ADD_FIXED_FIXED(MUL_FIXED_FIXED (
+  thread->recent_cpu = ADD_FIXED_INT(MUL_FIXED_FIXED(
           fraction_load_avg, thread->recent_cpu), thread->nice);
 }
 
@@ -183,12 +187,14 @@ thread_tick (void)
     t->recent_cpu = ADD_FIXED_INT(t->recent_cpu, 1);
   }
 
-  if (thread_mlfqs)
+  if (thread_mlfqs && timer_ticks() % TIMER_FREQ == 0)
   {
-    load_avg = ADD_FIXED_FIXED(MUL_FIXED_INT (load_avg, LOAD_COEFFICIENT),
-               MUL_FIXED_INT (threads_ready (), READY_T_COEFFICIENT));
-    // maybe use some constants
-    thread_foreach (recent_cpu_function, NULL);
+  	load_avg = ADD_FIXED_FIXED(MUL_FIXED_FIXED (load_avg, LOAD_COEFFICIENT),
+		                             MUL_FIXED_INT (READY_T_COEFFICIENT,
+		                                            threads_ready () + 1));
+
+  	// maybe use some constants
+  	thread_foreach (recent_cpu_function, NULL);
   }
 
   //-----------------------------------------------------------------
@@ -437,11 +443,12 @@ priority_bounds (int priority)
 void
 thread_set_nice (int new_nice)
 {
-  new_nice = priority_bounds (new_nice);
+//  new_nice = priority_bounds (new_nice);
   thread_current ()->nice = new_nice;
-  int new_priority = DIV_FIXED_FIXED(DIV_FIXED_FIXED (PRI_MAX,
+  int new_priority = FIXED_TO_INT(DIV_FIXED_FIXED(DIV_FIXED_FIXED (PRI_MAX,
    INT_TO_FIXED (thread_current ()->recent_cpu * RECENT_CPU_COEFFICIENT)),
-                          INT_TO_FIXED ( new_nice * NICE_COEFFICIENT));
+                          INT_TO_FIXED ( new_nice * NICE_COEFFICIENT)));
+  new_priority = priority_bounds(new_priority);
   int old_priority = thread_current ()->priority;
   thread_current ()->priority = new_priority;
   if (new_priority < old_priority)
@@ -466,14 +473,14 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  return FIXED_TO_INT_ROUNDED(load_avg * 100);
+  return FIXED_TO_INT_ROUNDED( MUL_FIXED_INT(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
-  return FIXED_TO_INT_ROUNDED(thread_current ()->recent_cpu * 100);
+  return FIXED_TO_INT_ROUNDED(MUL_FIXED_INT(thread_current ()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
