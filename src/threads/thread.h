@@ -154,9 +154,9 @@ bool
 priority_comp_func (const struct list_elem *a, const struct list_elem *b,
                     void *aux UNUSED);
 
-
 int priority_bounds (int priority);
 int thread_get_priority_helper (struct thread *t);
 void recent_cpu_function (struct thread *thread, void *aux UNUSED);
+void new_priority (struct thread *thread, void * aux UNUSED);
 
 #endif /* threads/thread.h */
