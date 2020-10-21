@@ -403,8 +403,8 @@ thread_get_priority (void)
 {
 //	return thread_current ()->priority;
 //	the highest donanted priority is returned
-//	return thread_get_priority_helper(thread_current());
-	return running_thread ()->priority;
+return thread_get_priority_helper(thread_current());
+	//return running_thread ()->priority;
 }
 
 
@@ -527,6 +527,8 @@ init_thread (struct thread *t, const char *name, int priority)
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
 
+	list_init (&t->donations);
+	t->thread_waits_lock = NULL;
 	old_level = intr_disable ();
 	list_push_back (&all_list, &t->allelem);
 	intr_set_level (old_level);
