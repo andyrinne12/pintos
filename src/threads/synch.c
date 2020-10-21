@@ -207,6 +207,15 @@ lock_acquire (struct lock *lock)
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+//  if a donnation occurs, the thread definitely has a holder
+  if(lock->holder)
+  {
+    ASSERT (thread_get_priority_helper(lock->holder) < thread_get_priority());
+    thread_current () -> thread_waits_lock = lock;
+    list_insert_ordered(&lock->holder->donations, &thread_current()->donation_elem, priority_comp_func, NULL);
+
+  }
+
 	sema_down (&lock->semaphore);
 	lock->holder = thread_current ();
 }
@@ -242,6 +251,15 @@ lock_release (struct lock *lock)
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
+  struct list *waiters = &lock->semaphore.waiters;
+
+  if(list_empty(waiters)) lock->holder = NULL;
+  else{
+    struct thread *curr_thread = list_entry(list_front(waiters), struct thread, elem);
+    list_remove(&curr_thread->donation_elem);
+
+
+  }
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
 }

@@ -371,12 +371,31 @@ thread_set_priority (int new_priority)
 	lock_release (&set_priority_lock);
 }
 
+int
+thread_get_priority_helper (struct thread *t)
+{
+	if(list_empty(&t->donations)) return t->priority;
+	else{
+		int priority = 0;
+		for(struct list_elem *e = list_begin(&t->donations); e != list_end(&t->donations); e = list_next(e)){
+			struct thread *thread_donated = list_entry(e, struct thread, donation_elem);
+			int updated_priority = thread_get_priority_helper(thread_donated);
+			if(updated_priority > priority) priority = updated_priority;
+		}
+		return priority;
+	}
+}
+
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void)
 {
-	return thread_current ()->priority;
+//	return thread_current ()->priority;
+//	the highest donanted priority is returned
+	return thread_get_priority_helper(thread_current());
+
 }
+
 
 /* Sets the current thread's nice value to NICE. */
 void
