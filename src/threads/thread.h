@@ -103,10 +103,9 @@ struct thread
 
 	int64_t wake_up_time;               /* Sleeping wake up time */
 	struct list_elem sleep_elem;    /* List element for sleeping list */
+
 	int nice;
 	int recent_cpu;
-	
-	struct list_elem sleep_elem;              /* List element for sleeping list */
 
 	struct list donations;							/* list of threads that have donated priorities to this thread */
 	struct list_elem donation_elem;      /* element of list donations */
@@ -157,6 +156,7 @@ priority_comp_func (const struct list_elem *a, const struct list_elem *b,
 
 
 int priority_bounds (int priority);
+int thread_get_priority_helper (struct thread *t);
 void recent_cpu_function (struct thread *thread, void *aux UNUSED);
 
 #endif /* threads/thread.h */

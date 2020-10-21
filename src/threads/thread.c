@@ -87,6 +87,7 @@ static tid_t allocate_tid (void);
 bool
 priority_comp_func (const struct list_elem *a, const struct list_elem *b,
                     void *aux UNUSED);
+int thread_get_priority_helper (struct thread *t);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -458,6 +459,16 @@ return thread_get_priority_helper(thread_current());
 	//return running_thread ()->priority;
 }
 
+/* Checks priority is within bounds */
+int
+priority_bounds (int priority)
+{
+	if (priority < PRI_MIN)
+		return PRI_MIN;
+	if (priority > PRI_MAX)
+		return PRI_MAX;
+	return priority;
+}
 
 /* Sets the current thread's nice value to NICE. */
 void
