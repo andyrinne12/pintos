@@ -142,9 +142,11 @@ void thread_yield (void);
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
+void thread_foreach_mlfqs(thread_action_func *func, void *aux);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void update_priority (int recent_cpu, int new_nice, struct thread *thread);
 
 int thread_get_nice (void);
 void thread_set_nice (int);

@@ -5,8 +5,8 @@
 #ifndef PINTOS_15_FIXED_POINT_H
 #define PINTOS_15_FIXED_POINT_H
 
-#define SHIFT 0x4000 // = 2^14 = 1 << 14
-#define ROUND 0x2000 // = 2^13 = SHIFT / 2
+#define SHIFT (1 << 14)
+#define ROUND (SHIFT / 2)
 
 /*
  * Conversion utils:
