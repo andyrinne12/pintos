@@ -120,6 +120,7 @@ extern bool thread_mlfqs;
 void thread_init (void);
 void thread_start (void);
 size_t threads_ready (void);
+size_t threads_mlfqs(void);
 
 void thread_tick (void);
 void thread_print_stats (void);
