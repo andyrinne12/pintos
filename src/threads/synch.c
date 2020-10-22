@@ -214,17 +214,17 @@ lock_acquire (struct lock *lock)
 
 // if a donnation occurs, the thread definitely has a holder
   if (!thread_mlfqs)
-	{
-	  if (lock->holder)
-		{
-		  ASSERT (
-			  thread_get_priority_helper (lock->holder)
-			  < thread_get_priority ());
-		  thread_current ()->thread_waits_lock = lock;
-		  list_insert_ordered (&lock->holder->donations, &thread_current ()->donation_elem, priority_comp_func, NULL);
+	if (lock->holder)
+	  {
+		ASSERT (
+			thread_get_priority_helper (lock->holder)
+			< thread_get_priority ());
+		thread_current ()->thread_waits_lock = lock;
+		list_insert_ordered (&lock->holder->donations,
+							 &thread_current ()->donation_elem, priority_comp_func,
+							 NULL);
 
-		}
-	}
+	  }
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
@@ -262,26 +262,29 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   struct list *waiters = &lock->semaphore.waiters;
-  if (list_empty (waiters)) lock->holder = NULL;
-  else
+  if (!thread_mlfqs)
 	{
-	  struct thread *curr_thread = list_entry (list_front (waiters),
-	  struct thread, elem);
-	  list_remove (&curr_thread->donation_elem);
-	  struct list *donations = &lock->holder->donations;
-	  for (struct list_elem *e = list_begin (donations);
-		   e != list_end (donations); e = list_next (e))
+	  if (list_empty (waiters)) lock->holder = NULL;
+	  else
 		{
-		  struct thread *donated_thread = list_entry (e,
-		  struct thread, donation_elem);
-		  if (donated_thread->thread_waits_lock == lock)
+		  struct thread *curr_thread = list_entry (list_front (waiters),
+		  struct thread, elem);
+		  list_remove (&curr_thread->donation_elem);
+		  struct list *donations = &lock->holder->donations;
+		  for (struct list_elem *e = list_begin (donations);
+			   e != list_end (donations); e = list_next (e))
 			{
-			  e = list_remove (e);
-			  e = list_prev (e);
-			  list_push_back (&curr_thread->donations, &donated_thread->donation_elem);
+			  struct thread *donated_thread = list_entry (e,
+			  struct thread, donation_elem);
+			  if (donated_thread->thread_waits_lock == lock)
+				{
+				  e = list_remove (e);
+				  e = list_prev (e);
+				  list_push_back (&curr_thread->donations, &donated_thread->donation_elem);
+				}
 			}
+		  lock->holder = curr_thread;
 		}
-	  lock->holder = curr_thread;
 	}
   lock->holder = NULL;
   sema_up (&lock->semaphore);

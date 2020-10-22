@@ -156,17 +156,10 @@ threads_mlfqs (void)
   return list_size (&ready_list_mlfqs);
 }
 
-//  ------------------------------------------------------------------------
-
 /* Function that updates mlfqs priority everytime one factor updates */
 void
 new_priority (struct thread *thread, void *aux UNUSED)
 {
-//  int new_priority = FIXED_TO_INT(SUB_FIXED_FIXED (
-//	  SUB_FIXED_FIXED (
-//		  PRI_MAX, MUL_FIXED_FIXED (thread->recent_cpu,
-//									RECENT_CPU_COEFFICIENT)),
-//	  MUL_FIXED_INT (NICE_COEFFICIENT, thread->nice)));
   int new_priority = PRI_MAX - FIXED_TO_INT(thread->recent_cpu) / 4
 					 - thread->nice * NICE_COEFFICIENT;
 
@@ -185,8 +178,6 @@ recent_cpu_function (struct thread *thread, void *aux UNUSED)
 	  thread->nice);
   new_priority (thread, NULL);
 }
-
-// --------------------------------------------------------------------------
 
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
@@ -222,7 +213,6 @@ thread_tick (void)
 		  MUL_FIXED_FIXED (load_avg, LOAD_COEFFICIENT),
 		  MUL_FIXED_INT (READY_T_COEFFICIENT, ready_mlfqs_threads));
 
-//	  thread_foreach_mlfqs (recent_cpu_function, NULL);
 	  thread_foreach (recent_cpu_function, NULL);
 
 	  list_sort (&ready_list_mlfqs, priority_comp_func, NULL);
@@ -531,7 +521,7 @@ thread_set_nice (int new_nice)
 //  int new_priority = update_priority (thread_current ()->recent_cpu, new_nice);
 //  new_priority = priority_bounds (new_priority);
 //  thread_current ()->priority = new_priority;
-  if (new_priority < old_priority)
+  if (new_priority < old_priority && !list_empty (&ready_list_mlfqs))
 	{
 	  int highest_thread_priority =
 		  list_entry (list_front (&ready_list_mlfqs),
