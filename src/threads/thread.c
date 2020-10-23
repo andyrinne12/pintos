@@ -196,8 +196,6 @@ thread_tick (void)
   else
 	kernel_ticks++;
 
-  //----------------------------------------------------------------
-
   if (thread_mlfqs && t != idle_thread)
 	{
 	  t->recent_cpu = ADD_FIXED_INT(t->recent_cpu, 1);
@@ -217,8 +215,6 @@ thread_tick (void)
 
 	  list_sort (&ready_list_mlfqs, priority_comp_func, NULL);
 	}
-
-  //-----------------------------------------------------------------
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -338,24 +334,26 @@ thread_unblock (struct thread *t)
 						   NULL);
 	}
   else
-	{
-	  list_insert_ordered (&ready_list, &t->elem, &priority_comp_func, NULL);
-	}
+	list_insert_ordered (&ready_list, &t->elem, &priority_comp_func, NULL);
+
   t->status = THREAD_READY;
   struct thread *cur_thread = running_thread ();
   int new_prio = t->priority;
   int cur_prio = cur_thread->priority;
 
   intr_set_level (old_level);
-
-  if (cur_thread != idle_thread && new_prio > cur_prio)
-	thread_yield ();
+  
+  if (!thread_mlfqs || !intr_context ())
+	if (cur_thread != idle_thread && new_prio > cur_prio)
+	  thread_yield ();
 }
 
 /* Returns the name of the running thread. */
 const char *
 thread_name (void)
-{ return thread_current ()->name; }
+{
+  return thread_current ()->name;
+}
 
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
@@ -422,10 +420,8 @@ thread_yield (void)
 							   &priority_comp_func, NULL);
 		}
 	  else
-		{
-		  list_insert_ordered (&ready_list, &cur->elem, &priority_comp_func,
-							   NULL);
-		}
+		list_insert_ordered (&ready_list, &cur->elem, &priority_comp_func,
+							 NULL);
 	}
   cur->status = THREAD_READY;
   schedule ();
@@ -459,9 +455,7 @@ thread_set_priority (int new_priority)
   thread_current ()->priority = new_priority;
 
   if (old_priority > new_priority)
-	{
-	  thread_yield ();
-	}
+	thread_yield ();
 
   lock_release (&set_priority_lock);
 }
@@ -513,14 +507,10 @@ priority_bounds (int priority)
 void
 thread_set_nice (int new_nice)
 {
-  //  new_nice = priority_bounds (new_nice);
   thread_current ()->nice = new_nice;
   int old_priority = thread_current ()->priority;
   new_priority (thread_current (), NULL);
   int new_priority = thread_current ()->priority;
-//  int new_priority = update_priority (thread_current ()->recent_cpu, new_nice);
-//  new_priority = priority_bounds (new_priority);
-//  thread_current ()->priority = new_priority;
   if (new_priority < old_priority && !list_empty (&ready_list_mlfqs))
 	{
 	  int highest_thread_priority =
@@ -528,9 +518,8 @@ thread_set_nice (int new_nice)
 	  struct thread, elem)
 	  ->priority;
 	  if (highest_thread_priority > new_priority)
-		{
-		  thread_yield ();
-		}
+		thread_yield ();
+
 	}
 }
 
