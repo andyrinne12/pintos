@@ -220,8 +220,11 @@ thread_tick (void)
   /* Enforce preemption. */
 
   if (++thread_ticks >= TIME_SLICE){
-    t->last_tick = kernel_ticks;
-    sort_ready_list();
+    if (!thread_mlfqs)
+	  {
+		t->last_tick = kernel_ticks;
+		sort_ready_list ();
+	  }
     intr_yield_on_return ();
   }
 }
