@@ -209,7 +209,6 @@ static void unblock_next_thread (void)
 {
 	if (!list_empty (&sleeping_threads))
 	{
-		list_sort(&sleeping_threads, time_less_func, NULL);
 		struct thread *next_thread = list_entry (list_front (&sleeping_threads),
 		struct thread, sleep_elem);
 
