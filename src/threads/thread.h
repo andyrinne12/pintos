@@ -122,6 +122,7 @@ extern bool thread_mlfqs;
 void thread_init (void);
 void thread_start (void);
 size_t threads_ready (void);
+size_t threads_mlfqs(void);
 
 void thread_tick (void);
 void thread_print_stats (void);
@@ -143,9 +144,11 @@ void thread_yield (void);
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
+void thread_foreach_mlfqs(thread_action_func *func, void *aux);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void update_priority (int recent_cpu, int new_nice, struct thread *thread);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
@@ -156,10 +159,10 @@ bool
 priority_comp_func (const struct list_elem *a, const struct list_elem *b,
                     void *aux UNUSED);
 
-
 int priority_bounds (int priority);
 int thread_get_priority_helper (struct thread *t);
 void recent_cpu_function (struct thread *thread, void *aux UNUSED);
+void new_priority (struct thread *thread, void * aux UNUSED);
 
 struct list* get_ready_list(void);
 void sort_ready_list(void);
