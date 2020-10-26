@@ -89,6 +89,15 @@ struct thread
 	uint8_t *stack;                     /* Saved stack pointer. */
 	int priority;                       /* Priority. */
 	struct list_elem allelem;           /* List element for all threads list. */
+	uint64_t last_tick;									/* The last tick the thread ran */
+
+
+	struct list donations;							/* list of threads that have donated priorities to this thread */
+	struct list_elem donation_elem;      /* element of list donations */
+	struct lock *thread_waits_lock;				/* threads waits for a lock*/
+
+	int64_t wake_up_time;               /* Sleeping wake up time */
+	struct list_elem sleep_elem;    		/* List element for sleeping list */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
@@ -101,15 +110,8 @@ struct thread
 	/* Owned by thread.c. */
 	unsigned magic;                     /* Detects stack overflow. */
 
-	int64_t wake_up_time;               /* Sleeping wake up time */
-	struct list_elem sleep_elem;    /* List element for sleeping list */
-
 	int nice;
 	int recent_cpu;
-
-	struct list donations;							/* list of threads that have donated priorities to this thread */
-	struct list_elem donation_elem;      /* element of list donations */
-	struct lock *thread_waits_lock;				/* threads waits for a lock*/
 };
 
 /* If false (default), use round-robin scheduler.
@@ -162,4 +164,6 @@ int thread_get_priority_helper (struct thread *t);
 void recent_cpu_function (struct thread *thread, void *aux UNUSED);
 void new_priority (struct thread *thread, void * aux UNUSED);
 
+struct list* get_ready_list(void);
+void sort_ready_list(void);
 #endif /* threads/thread.h */
