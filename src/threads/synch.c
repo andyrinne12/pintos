@@ -218,6 +218,9 @@ lock_acquire (struct lock *lock)
   if(lock->holder)
   {
     struct thread *cur = thread_current();
+    //--
+    thread_current ()->thread_waits_lock = lock;
+    //--
     list_insert_ordered(&lock->holder->donations, &cur->donation_elem, priority_donate_comp_func, NULL);
     sort_ready_list();
   }
@@ -270,6 +273,20 @@ lock_release (struct lock *lock)
      struct thread, elem);
 
     list_remove(&wake_thread->donation_elem);
+    //--
+    struct list *donations = &lock->holder->donations;
+    struct list_elem *e;
+
+    for(e = list_begin(donations); e!= list_end(donations); e = list_next(e)){
+      struct thread *donated = list_entry (e, struct thread, donation_elem);
+
+        if (donated->thread_waits_lock == lock) {
+          e = list_remove (e);
+          e = list_prev (e);
+          list_push_back (&wake_thread->donations, &donated->donation_elem);
+        }
+    }
+    //--
   }
   intr_set_level(old_level);
 
