@@ -274,6 +274,7 @@ thread_create (const char *name, int priority, thread_func *function,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+
   /* Prepare thread for first run by initializing its stack.
            Do this atomically so intermediate values for the 'stack'
            member cannot be observed. */
@@ -655,6 +656,8 @@ init_thread (struct thread *t, const char *name, int priority)
 	old_level = intr_disable ();
 	list_push_back (&all_list, &t->allelem);
 
+
+  sema_init(&t->timer_sema, 0);
 
   list_init (&t->donations);
 //  t->thread_waits_lock = NULL;
