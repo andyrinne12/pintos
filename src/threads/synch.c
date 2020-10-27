@@ -323,7 +323,7 @@ lock_held_by_current_thread (const struct lock *lock)
 struct semaphore_elem {
   struct list_elem elem;              /* List element. */
   struct semaphore semaphore;         /* This semaphore. */
-  int priority_sem;
+  int sema_priority;									/* Priority of thread inside semaphore */
 };
 
 /* Initializes condition variable COND.  A condition variable
@@ -368,9 +368,8 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   sema_init (&waiter.semaphore, 0);
-  waiter.priority_sem = thread_current ()->priority;
-  list_insert_ordered (&cond->waiters, &waiter.elem,
-					   &priority_sema_comp_func,
+  waiter.sema_priority = thread_current ()->priority;
+  list_insert_ordered (&cond->waiters, &waiter.elem, &priority_sema_comp_func,
 					   NULL);
 
   lock_release (lock);
@@ -416,7 +415,9 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 	cond_signal (cond, lock);
 }
 
-/* Function used by cond->waiters list to compare sema priorities and favor higher ones */
+/* Compares two semaphores based on highest priority thread
+	used by cond->waiters to sort its threads
+	returns true if a < b */
 static bool
 priority_sema_comp_func (const struct list_elem *a, const struct list_elem *b,
 						 void *aux UNUSED)
@@ -425,9 +426,12 @@ priority_sema_comp_func (const struct list_elem *a, const struct list_elem *b,
   struct semaphore_elem,elem);
   struct semaphore_elem *second_sema = list_entry (b,
   struct semaphore_elem,elem);
-  return first_sema->priority_sem > second_sema->priority_sem;
+  return first_sema->sema_priority > second_sema->sema_priority;
 }
 
+/* Compares donated priorities (pointers to threads that donated)
+	used for sorting
+	returns true if a < b */
 bool
 priority_donate_comp_func (const struct list_elem *a, const struct list_elem *b,
 						   void *aux UNUSED)

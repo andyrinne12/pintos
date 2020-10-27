@@ -350,7 +350,7 @@ thread_unblock (struct thread *t)
   int cur_prio = cur_thread->priority;
 
   intr_set_level (old_level);
-  
+
   if (!thread_mlfqs || !intr_context ())
 	if (cur_thread != idle_thread && new_prio > cur_prio)
 	  thread_yield ();
@@ -468,14 +468,15 @@ thread_set_priority (int new_priority)
   lock_release (&set_priority_lock);
 }
 
+/* Return the maximum between the highest priority donation
+  he received and his own */
 int
 thread_get_priority_helper (struct thread *t)
 {
-
   enum intr_level old_level;
-  old_level = intr_disable();
-
   int priority = 0;
+
+  old_level = intr_disable();
 
 	if(list_empty(&t->donations))
     priority = t->priority;
@@ -488,6 +489,7 @@ thread_get_priority_helper (struct thread *t)
 			struct thread *thread_donated = list_entry(e, struct thread, donation_elem);
 
   		int updated_priority = thread_get_priority_helper(thread_donated);
+
   		if(updated_priority > priority)
         priority = updated_priority;
 		}
@@ -500,10 +502,7 @@ thread_get_priority_helper (struct thread *t)
 int
 thread_get_priority (void)
 {
-  //	return thread_current ()->priority;
-  //	the highest donanted priority is returned
   return thread_get_priority_helper (thread_current ());
-  // return running_thread ()->priority;
 }
 
 /* Checks priority is within bounds */
@@ -511,9 +510,9 @@ int
 priority_bounds (int priority)
 {
   if (priority < PRI_MIN)
-	return PRI_MIN;
+	  return PRI_MIN;
   if (priority > PRI_MAX)
-	return PRI_MAX;
+	  return PRI_MAX;
   return priority;
 }
 
@@ -524,16 +523,15 @@ thread_set_nice (int new_nice)
   thread_current ()->nice = new_nice;
   int old_priority = thread_current ()->priority;
   new_priority (thread_current (), NULL);
+
   int new_priority = thread_current ()->priority;
   if (new_priority < old_priority && !list_empty (&ready_list_mlfqs))
 	{
-	  int highest_thread_priority =
-		  list_entry (list_front (&ready_list_mlfqs),
-	  struct thread, elem)
-	  ->priority;
-	  if (highest_thread_priority > new_priority)
-		thread_yield ();
+	  int highest_thread_priority = list_entry (list_front (&ready_list_mlfqs),
+	    struct thread, elem)->priority;
 
+    if (highest_thread_priority > new_priority)
+		  thread_yield ();
 	}
 }
 
@@ -690,15 +688,15 @@ next_thread_to_run (void)
 	  if (list_empty (&ready_list_mlfqs))
 		return idle_thread;
 	  else
-		return list_entry (list_pop_front (&ready_list_mlfqs),
-	  struct thread, elem);
+		return list_entry (list_pop_front (&ready_list_mlfqs), struct thread, elem);
 	}
+  else {
   if (list_empty (&ready_list))
     return idle_thread;
   else{
     list_sort(&ready_list, priority_comp_func, NULL);
-    return list_entry (list_pop_front (&ready_list),
-                       struct thread, elem);
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    }
   }
 }
 
