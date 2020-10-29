@@ -220,9 +220,9 @@ thread_tick (void)
   /* Enforce preemption. */
 
   if (++thread_ticks >= TIME_SLICE){
+    t->last_tick = kernel_ticks;
     if (!thread_mlfqs)
 	  {
-		t->last_tick = kernel_ticks;
 		sort_ready_list ();
 	  }
     intr_yield_on_return ();
@@ -646,23 +646,15 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-
-//   list_init (&t->donations);
-//   t->thread_waits_lock = NULL;
-//   old_level = intr_disable ();
-//   list_push_back (&all_list, &t->allelem);
-//   intr_set_level (old_level);
-
-	old_level = intr_disable ();
-	list_push_back (&all_list, &t->allelem);
+  old_level = intr_disable ();
+  list_push_back (&all_list, &t->allelem);
 
 
   sema_init(&t->timer_sema, 0);
 
   list_init (&t->donations);
-//  t->thread_waits_lock = NULL;
 
-	intr_set_level (old_level);
+  intr_set_level (old_level);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -806,6 +798,12 @@ priority_comp_func (const struct list_elem *a, const struct list_elem *b,
   else if(p1 < p2)
     return false;
   else
+  	if (thread_mlfqs) {
+  	  if (t1->recent_cpu == t2->recent_cpu) {
+		  return t1->last_tick < t2->last_tick;
+  	  }
+	  return t1->recent_cpu < t2 ->recent_cpu;
+	}
     return (t1->last_tick < t2->last_tick);
 }
 
