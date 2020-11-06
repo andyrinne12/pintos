@@ -416,9 +416,9 @@ thread_yield (void)
 							   &priority_comp_func, NULL);
 		}
 	  else
-		list_insert_ordered (&ready_list, &cur->elem, &priority_comp_func,
-							 NULL);
+		list_push_back (&ready_list, &cur->elem);
 	}
+
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -476,6 +476,7 @@ thread_get_priority_helper (struct thread *t)
 		for(e = list_begin(donations); e != list_end(donations); e = list_next(e)){
 			struct thread *thread_donated = list_entry(e, struct thread, donation_elem);
 
+      printf("NAME %s\n", thread_donated->name);
   		int updated_priority = thread_get_priority_helper(thread_donated);
 
   		if(updated_priority > priority)
