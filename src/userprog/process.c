@@ -57,11 +57,21 @@ process_execute (const char *command_line)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *command_line_)
 {
-  char *file_name = file_name_;
+  char *command_line = command_line_;
   struct intr_frame if_;
   bool success;
+
+  /* FILE_NAME keeps track of the file name (first token in command line) */
+  char *file_name;
+  /* ARGUMENTS keeps track of the program arguments (remaining tokens) */
+  char *arguments;
+  /* ARG_LENGTH keeps track of arguments length */
+  int arg_length = strlen(command_line) + 1;
+
+  /* Tokenize the command line and recognize the first as the FILE_NAME */
+  file_name = strtok_r((char *) command_line, " ", &arguments);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -70,10 +80,39 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
   if (!success)
-	thread_exit ();
+	{
+	  /* If load failed, quit. */
+	  palloc_free_page (file_name);
+	  thread_exit ();
+	}
+
+	/* Initialize argument count */
+	int argc = 0;
+
+	/* Command line arguments array initialization */
+  char **argv = (char **) malloc (arg_length * sizeof(char));
+
+  /* Check for correct memory allocation */
+  if (!argv)
+	PANIC("Could not allocate memory for command line arguments array");
+
+  argv[0] = file_name;
+  argc++;
+
+  char *token;
+  while (token != NULL)
+	{
+	  token = strtok_r(NULL, " ", &arguments);
+	  argc++;
+	  argv[argc] = token;
+	  arg_length += strlen(token) + 1;
+	}
+
+	// -------------------- PUSH ARGUMENTS ON STACK HERE --------------------
+
+  /* Free the command line arguments array */
+  free(argv);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

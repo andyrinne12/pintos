@@ -109,11 +109,11 @@ struct thread
 	uint32_t *pagedir;                  /* Page directory. */
 #endif
 
+  	int nice;
+  	int recent_cpu;
+
 	/* Owned by thread.c. */
 	unsigned magic;                     /* Detects stack overflow. */
-
-	int nice;
-	int recent_cpu;
 };
 
 /* If false (default), use round-robin scheduler.
