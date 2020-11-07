@@ -40,9 +40,6 @@ bool thread_mlfqs;
 static bool
 priority_sema_comp_func (const struct list_elem *a, const struct list_elem *b,
 						 void *aux UNUSED);
-static bool
-priority_donate_comp_func (const struct list_elem *a, const struct list_elem *b,
-						   void *aux UNUSED);
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -81,7 +78,6 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0)
 	{
 	  list_push_back (&sema->waiters, &thread_current ()->elem);
-	  ASSERT (list_size (&sema->waiters));
 	  thread_block ();
 	}
   sema->value--;
@@ -137,7 +133,6 @@ sema_up (struct semaphore *sema)
 		list_remove(t_elem);
 
 		thread_unblock (t);
-		printf("IN SEMA UP %s\n", t->name);
 		new_prio = thread_get_priority_helper(t);
 		curr_prio = thread_get_priority();
 	}
@@ -237,6 +232,7 @@ lock_acquire (struct lock *lock)
 		struct thread *cur = thread_current ();
 		thread_current ()->thread_waits_lock = lock;
 
+	//	printf("FROM %s TO %s\n", cur->name, lock->holder->name);
 		list_push_back (&lock->holder->donations, &cur->donation_elem);
 	}
 	sema_down (&lock->semaphore);
@@ -281,35 +277,39 @@ lock_release (struct lock *lock)
   enum intr_level old_level;
   old_level = intr_disable ();
 
-  if (!thread_mlfqs)
-	{
-	  if (!list_empty (waiters))
-		{
-			struct list_elem *wake_elem;
-		  struct thread *wake_thread;
+	if (!thread_mlfqs && !list_empty (waiters)) {
+		struct list_elem *wake_elem;
+		struct thread *wake_thread;
 
-			wake_elem = list_min(waiters, priority_comp_func, NULL);
-			wake_thread = list_entry (wake_elem, struct thread, elem);
-		  list_remove (&wake_thread->donation_elem);
+		wake_elem = list_min(waiters, priority_comp_func, NULL);
+		wake_thread = list_entry (wake_elem, struct thread, elem);
 
-		  struct list *donations = &lock->holder->donations;
-		  struct list_elem *e;
+		lock->holder = NULL;
+		sema_up (&lock->semaphore);
 
-		  for (e = list_begin (donations); e != list_end (donations);
-				e = list_next (e)) {
+		list_remove (&wake_thread->donation_elem);
 
-			  struct thread *donated = list_entry (e, struct thread, donation_elem);
+		printf("%s\n", wake_thread->name);
 
-			  if (donated->thread_waits_lock == lock) {
-				  e = list_remove (e);
-				  e = list_prev (e);
-				  list_push_back (&wake_thread->donations, &donated->donation_elem);
-				}
-			}
+		struct list *donations = &lock->holder->donations;
+		struct list_elem *e;
+
+		for (e = list_begin (donations); e != list_end (donations);) {
+
+		 struct thread *donated = list_entry (e, struct thread, donation_elem);
+
+		 if (donated->thread_waits_lock == lock) {
+		  e = list_remove (e);
+		  list_push_front (&wake_thread->donations, &donated->donation_elem);
+		 }
+			else
+				e = list_next(e);
 		}
 	}
-	lock->holder = NULL;
-	sema_up (&lock->semaphore);
+	else {
+		lock->holder = NULL;
+		sema_up (&lock->semaphore);
+	}
 
 	intr_set_level (old_level);
 }
@@ -433,28 +433,6 @@ priority_sema_comp_func (const struct list_elem *a, const struct list_elem *b,
   struct semaphore_elem *second_sema = list_entry (b,
   struct semaphore_elem,elem);
   return first_sema->sema_priority > second_sema->sema_priority;
-}
-
-/* Compares donated priorities (pointers to threads that donated)
-	used for sorting
-	returns true if a < b */
-bool
-priority_donate_comp_func (const struct list_elem *a, const struct list_elem *b,
-						   void *aux UNUSED)
-{
-  struct thread *t1 = list_entry (a,
-  struct thread, donation_elem);
-  struct thread *t2 = list_entry (b,
-  struct thread, donation_elem);
-	printf("%d %d\n", t1->priority, t2->priority);
-  int p1 = thread_get_priority_helper (t1);
-  int p2 = thread_get_priority_helper (t2);
-  if (p1 > p2)
-	return true;
-  else if (p1 < p2)
-	return false;
-  else
-	return (t1->last_tick < t2->last_tick);
 }
 
 // /* Compares two semaphores based on highest priority thread

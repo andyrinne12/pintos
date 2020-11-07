@@ -416,7 +416,7 @@ thread_yield (void)
 							   &priority_comp_func, NULL);
 		}
 	  else
-		list_push_back (&ready_list, &cur->elem);
+		  list_push_back (&ready_list, &cur->elem);
 	}
 
   cur->status = THREAD_READY;
@@ -469,20 +469,20 @@ thread_get_priority_helper (struct thread *t)
 	if(list_empty(&t->donations))
     priority = t->priority;
 
-  else{
+  else {
     struct list_elem *e;
     struct list *donations = &t->donations;
-
 		for(e = list_begin(donations); e != list_end(donations); e = list_next(e)){
-			struct thread *thread_donated = list_entry(e, struct thread, donation_elem);
+			struct thread *thread_donated;
+      thread_donated = list_entry(e, struct thread, donation_elem);
 
-      printf("NAME %s\n", thread_donated->name);
   		int updated_priority = thread_get_priority_helper(thread_donated);
 
   		if(updated_priority > priority)
         priority = updated_priority;
 		}
 	}
+
   intr_set_level(old_level);
   return priority;
 }
@@ -641,6 +641,7 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init(&t->timer_sema, 0);
 
   list_init (&t->donations);
+  t->thread_waits_lock = NULL;
 
   intr_set_level (old_level);
 }
@@ -788,16 +789,4 @@ priority_comp_func (const struct list_elem *a, const struct list_elem *b,
 	  return t1->recent_cpu < t2 ->recent_cpu;
 	}
     return (t1->last_tick < t2->last_tick);
-}
-
-void
-sort_ready_list (void)
-{
-  list_sort(&ready_list, priority_comp_func, NULL);
-}
-
-struct list*
-get_ready_list (void)
-{
-  return &ready_list;
 }
