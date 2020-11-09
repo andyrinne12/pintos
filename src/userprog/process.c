@@ -87,32 +87,21 @@ start_process (void *command_line_)
 	  thread_exit ();
 	}
 
-	/* Initialize argument count */
-	int argc = 0;
-
-	/* Command line arguments array initialization */
-  char **argv = (char **) malloc (arg_length * sizeof(char));
-
-  /* Check for correct memory allocation */
-  if (!argv)
-	PANIC("Could not allocate memory for command line arguments array");
-
-  argv[0] = file_name;
-  argc++;
+  // FILE_NAME is the first token and it should also be put on the stack
 
   char *token;
   while (token != NULL)
 	{
 	  token = strtok_r(NULL, " ", &arguments);
-	  argc++;
-	  argv[argc] = token;
+	  memcpy(if_.esp, &token, sizeof(if_.esi));
+	  if_.esp -= 4;
 	  arg_length += strlen(token) + 1;
 	}
 
+  hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
+
 	// -------------------- PUSH ARGUMENTS ON STACK HERE --------------------
 
-  /* Free the command line arguments array */
-  free(argv);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
