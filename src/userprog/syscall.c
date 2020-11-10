@@ -5,9 +5,13 @@
 #include "threads/thread.h"
 #include "../threads/vaddr.h"
 
+/* User pointers handling functions */
 static int get_user (const uint8_t *uaddr);
 static bool put_user (uint8_t *udst, uint8_t byte);
 static uint32_t load_memory_address(void *vaddr);
+static bool is_valid_buffer (void *baddr, int size);
+static bool is_valid_string (void *straddr);
+
 
 static void syscall_handler (struct intr_frame *);
 
@@ -50,11 +54,38 @@ put_user (uint8_t *udst, uint8_t byte)
 /* Receives a memory address and validates it.
  * If successful, it dereferences the stack pointer.
  * Otherwise, it terminates the user process.*/
-static uint32_t load_memory_address(void *vaddr){
+static uint32_t load_memory_address(void *vaddr)
+{
   if (get_user ((uint8_t *) vaddr) == -1) {
-	  // call the exit system call with an error code
+	  // TODO: call the exit system call with an error code
   }
   return *((uint32_t *) vaddr);
+}
+
+/* Handles special case of buffer inspection. */
+static bool is_valid_buffer (void *baddr, int size)
+{
+  char *buffer = (char *) baddr;
+  for (int i = 1; i < size; i++)
+    if (get_user ((uint8_t *) (buffer + i)) == -1)
+	  return false;
+  return true;
+}
+
+/* Handles special case of string inspection. */
+static bool is_valid_string (void *straddr)
+{
+  char *str = (char *) straddr;
+  int i = 0;
+  int chr = get_user ((uint8_t *) (str + i));;
+  while (chr != '\0') {
+    i++;
+    if (get_user ((uint8_t *) (str + i)) == -1)
+	  return false;
+	else
+	  chr = get_user ((uint8_t *) (str + i));
+  }
+  return true;
 }
 
 // -----------------------------------------------------------------
