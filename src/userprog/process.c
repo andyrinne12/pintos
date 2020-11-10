@@ -20,6 +20,8 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static void push_arguments(struct intr_frame* if_, char* first_token,
+  char* arguments);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -67,8 +69,6 @@ start_process (void *command_line_)
   char *file_name;
   /* ARGUMENTS keeps track of the program arguments (remaining tokens) */
   char *arguments;
-  /* ARG_LENGTH keeps track of arguments length */
-  int arg_length = strlen(command_line) + 1;
 
   /* Tokenize the command line and recognize the first as the FILE_NAME */
   file_name = strtok_r((char *) command_line, " ", &arguments);
@@ -87,18 +87,9 @@ start_process (void *command_line_)
 	  thread_exit ();
 	}
 
-  // FILE_NAME is the first token and it should also be put on the stack
+  /* Push arguments on the stack */
+  push_arguments(&if_, file_name, arguments);
 
-  char *token;
-  while (token != NULL)
-	{
-	  token = strtok_r(NULL, " ", &arguments);
-	  memcpy(if_.esp, &token, sizeof(if_.esi));
-	  if_.esp -= 4;
-	  arg_length += strlen(token) + 1;
-	}
-
-  hex_dump(0, if_.esp, PHYS_BASE - if_.esp, 0);
 
 	// -------------------- PUSH ARGUMENTS ON STACK HERE --------------------
 
@@ -113,13 +104,13 @@ start_process (void *command_line_)
   NOT_REACHED ();
 }
 
-/* Waits for thread TID to die and returns its exit status. 
- * If it was terminated by the kernel (i.e. killed due to an exception), 
- * returns -1.  
- * If TID is invalid or if it was not a child of the calling process, or if 
- * process_wait() has already been successfully called for the given TID, 
+/* Waits for thread TID to die and returns its exit status.
+ * If it was terminated by the kernel (i.e. killed due to an exception),
+ * returns -1.
+ * If TID is invalid or if it was not a child of the calling process, or if
+ * process_wait() has already been successfully called for the given TID,
  * returns -1 immediately, without waiting.
- * 
+ *
  * This function will be implemented in task 2.
  * For now, it does nothing. */
 int
@@ -507,4 +498,60 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
 		  && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+/* Pushes the arguments of the newly created user program on the stack
+  using IF_.ESP as the stack pointer, ending in 0 as the return address.
+  The arguments string is passed in ARGUMENTS and parsed using strtok_r().
+  FIRST_TOKEN stores the program name. */
+static void
+push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
+  /* FILE_NAME is the first token and it should also be put on the stack */
+
+  int argc = 0; /* number of arguments */
+
+  /* Initially addresses of arguments in the stack */
+  char* arg_address[ARGS_MAX_COUNT];
+
+  /* Memory used so far by arguments each ending in '\0' */
+  int used_memory = 0;
+
+  char* token = first_token;
+  while (token != NULL)
+  {
+    int token_memory = sizeof(char) * strlen(token) + 1;
+    if(used_memory + token_memory > ARGS_MAX_SIZE
+      || argc + 1 > ARGS_MAX_COUNT){
+      // TODO: Signal invalid arguments size
+      break;
+    }
+    arg_address[++argc] = if_->esp;
+    memset(if_->esp, 0, sizeof(char));
+    if_->esp -= sizeof(char);
+    memcpy(if_->esp, token, token_memory);
+    if_->esp -= token_memory;
+    used_memory += token_memory;
+
+    token = strtok_r(NULL, " ", &arguments);
+  }
+
+  if_->esp = last_address_alligned(if_->esp) - sizeof(char*) * argc;
+
+  for(int i = 0; i < argc; i++){
+    memcpy(if_->esp + i * sizeof(char*), &arg_address[i], sizeof(char*));
+  }
+
+  char** argv = if_->esp;
+  if_->esp -= sizeof(char**);
+  memcpy(if_->esp, &argv, sizeof(char**));
+
+  if_->esp -= sizeof(int);
+  memcpy(if_->esp, &argc, sizeof(int));
+
+  /* return address 0 */
+  if_->esp -= sizeof(void (*)(void));
+
+
+  /* Testing should work after system calls are implemented */
+  hex_dump(0, if_->esp, PHYS_BASE - if_->esp, 0);
 }
