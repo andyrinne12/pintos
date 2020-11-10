@@ -145,6 +145,16 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  /*
+   * Page fault in the kernel merely sets the interupt frame eax to 0xffffffff
+   * and copies the old value into eip
+   */
+  if (!user) {
+    f->eip = (void *) f->eax;
+    f->eax = 0xffffffff;
+    return;
+  }
+
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
