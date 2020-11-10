@@ -114,6 +114,9 @@ start_process (void *command_line_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
+  for(;;) {
+
+  }
   return -1;
 }
 
