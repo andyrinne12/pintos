@@ -1,10 +1,12 @@
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "../threads/vaddr.h"
 #include "../devices/shutdown.h"
+// #include <stdlib.h>
 
 /* User pointers handling functions */
 static int get_user (const uint8_t *uaddr);
@@ -16,8 +18,10 @@ static bool is_valid_string (void *straddr);
 static void syscall_handler (struct intr_frame *);
 
 /* System calls functions */
-static void sys_halt (void);
-static void sys_exit (int status);
+static void halt (void);
+static void exit (int status);
+static pid_t exec (const char *cmd_line);
+static int wait (pid_t pid);
 
 void
 syscall_init (void)
@@ -26,25 +30,27 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f)
 {
   uint32_t sys_call_number = load_memory_address(f->esp);
   switch (sys_call_number)
 	{
 	  /* Halt the operating system. */
 	  case SYS_HALT:
-	    sys_halt();
-		break;
+	    halt();
+		  break;
 	  /* Terminate this process. */
 	  case SYS_EXIT:
-//	    sys_exit();
-		break;
+	    exit(0);
+		  break;
 	  /* Start another process. */
 	  case SYS_EXEC:
-		break;
+      exec(NULL);
+		  break;
 	  /* Wait for a child process to die. */
 	  case SYS_WAIT:
-		break;
+      wait(0);
+      break;
 	  /* Create a file. */
 	  case SYS_CREATE:
 		break;
@@ -78,15 +84,40 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 }
 
-static void sys_halt(void)
+static void halt(void)
 {
   shutdown_power_off();
 }
 
-static void sys_exit(int status)
+static void exit(int status)
 {
   printf("%s: exit(%d)", thread_current()->name, status);
   thread_exit();
+}
+
+static pid_t exec (const char* cmd_line)
+{
+  pid_t pid = process_execute(cmd_line);
+
+  if(pid == TID_ERROR)
+  return -1;
+
+  struct thread *cur = thread_current();
+
+  struct child_process *child = malloc(sizeof(struct child_process));
+
+  if(child == NULL){
+  // TODO: Handle early termination
+  }
+
+  child->pid = pid;
+
+  return pid;
+}
+
+static int wait (pid_t pid)
+{
+  return 0;
 }
 
 // -----------------------------------------------------------------
@@ -131,7 +162,7 @@ put_user (uint8_t *udst, uint8_t byte)
 static uint32_t load_memory_address(void *vaddr)
 {
   if (get_user ((uint8_t *) vaddr) == -1) {
-	  sys_exit(EXIT_FAIL);
+	  exit(EXIT_FAIL);
 	}
   return *((uint32_t *) vaddr);
 }

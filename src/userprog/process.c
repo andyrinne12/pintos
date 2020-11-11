@@ -90,8 +90,6 @@ start_process (void *command_line_)
   /* Push arguments on the stack */
   push_arguments(&if_, file_name, arguments);
 
-
-
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
