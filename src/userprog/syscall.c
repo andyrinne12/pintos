@@ -194,7 +194,7 @@ static bool remove(const char *file){
   bool result;
 
   /* Check validity of file string and exit immediately if false */
-  if (is_valid_string(file))
+  if (!is_valid_string(file))
 	return false;
 
   lock_acquire(&file_sys_lock);
