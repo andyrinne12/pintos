@@ -7,15 +7,13 @@
 #include "../threads/vaddr.h"
 #include "../devices/shutdown.h"
 #include "../filesys/filesys.h"
-// #include <stdlib.h>
-#include <malloc.h>
 
 /* User pointers handling functions */
 static int get_user (const uint8_t *uaddr);
 static bool put_user (uint8_t *udst, uint8_t byte);
 static uint32_t load_memory_address(void *vaddr);
 static bool is_valid_buffer (void *baddr, int size);
-static bool is_valid_string (void *straddr);
+static bool is_valid_string (const char *str);
 
 static void syscall_handler (struct intr_frame *);
 
@@ -27,10 +25,13 @@ static int wait (pid_t pid);
 static bool create(const char *file, unsigned initial_size);
 static bool remove(const char *file);
 
+/* File system lock */
+struct lock file_sys_lock;
 
 void
 syscall_init (void)
 {
+  lock_init(&file_sys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -44,65 +45,80 @@ syscall_handler (struct intr_frame *f)
 	  case SYS_HALT:
 	    halt();
 		  break;
+
 	  /* Terminate this process. */
 	  case SYS_EXIT:
 	    exit(0);
 		  break;
+
 	  /* Start another process. */
 	  case SYS_EXEC:
-      exec(NULL);
+      	exec(NULL);
 		  break;
+
 	  /* Wait for a child process to die. */
 	  case SYS_WAIT:
-      wait(0);
-      break;
+      	wait(0);
+      	  break;
+
 	  /* Create a file. */
 	  case SYS_CREATE:
-    {
-      const char* file = *(char**)(f->esp + 1);
-      unsigned initial_size = *(unsigned*)(f->esp + 2);
-      f->eax = create(file, initial_size);
-      break;
-    }
+		{
+		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
+		  unsigned initial_size = *(unsigned *)(COMPUTE_ARG_2(f->esp));
+		  f->eax = create (file, initial_size);
+		  break;
+		}
+
 	  /* Delete a file. */
 	  case SYS_REMOVE:
-    {
-      const char* file = *(char**)(f -> esp + 1);
-      f->eax = remove(file);
-      break;
-    }
+		{
+		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
+		  f->eax = remove (file);
+		  break;
+		}
+
 	  /* Open a file. */
 	  case SYS_OPEN:
 		break;
+
 	  /* Obtain a file's size. */
 	  case SYS_FILESIZE:
 		break;
+
 	  /* Read from a file. */
 	  case SYS_READ:
 		break;
+
 	  /* Write to a file. */
 	  case SYS_WRITE:
 		break;
+
 	  /* Change position in a file. */
 	  case SYS_SEEK:
 		break;
+
 	  /* Report current position in a file. */
 	  case SYS_TELL:
 		break;
+
 	  /* Close a file. */
 	  case SYS_CLOSE:
 		break;
+
 	  /* Handle default case. Unrecognized system call. */
 	  default:
 		break;
 	}
 }
 
+/* Terminates Pintos */
 static void halt(void)
 {
   shutdown_power_off();
 }
 
+/* Terminates the current user program, sending its exit status to the kernel.*/
 static void exit(int status)
 {
   printf("%s: exit(%d)", thread_current()->name, status);
@@ -132,6 +148,28 @@ static pid_t exec (const char* cmd_line)
 static int wait (pid_t pid)
 {
   return 0;
+}
+
+/* Creates a new file called file initially initial size bytes in size.
+ * Returns true if successful, false otherwise.
+ * Creating a new file does not open it! */
+static bool create(const char *file, unsigned initial_size){
+  bool result;
+  result = is_valid_string(file);
+  lock_acquire(&file_sys_lock);
+  result = filesys_create(file, initial_size);
+  lock_release(&file_sys_lock);
+  return result;
+}
+
+/* Deletes the file called file. Returns true if successful, false otherwise. */
+static bool remove(const char *file){
+  bool result;
+  is_valid_string(file);
+  lock_acquire(&file_sys_lock);
+  result = filesys_remove(file);
+  lock_release(&file_sys_lock);
+  return result;
 }
 
 // -----------------------------------------------------------------
@@ -192,9 +230,8 @@ static bool is_valid_buffer (void *baddr, int size)
 }
 
 /* Handles special case of string inspection. */
-static bool is_valid_string (void *straddr)
+static bool is_valid_string (const char *str)
 {
-  char *str = (char *) straddr;
   int i = 0;
   int chr = get_user ((uint8_t *) (str + i));;
   while (chr != '\0') {
@@ -205,24 +242,4 @@ static bool is_valid_string (void *straddr)
 		chr = get_user ((uint8_t *) (str + i));
 	}
   return true;
-}
-
-// -----------------------------------------------------------------
-
-static bool create(const char *file, unsigned initial_size){
-  bool result;
-  result = is_valid_string(file);
-  // lock_acquire();
-  result = filesys_create(file, initial_size);
-  // lock_release();
-  return result;
-}
-
-static bool remove(const char *file){
-  bool result;
-  is_valid_string(file);
-  // lock_acquire();
-  result = filesys_remove(file);
-  // lock_release();
-  return result;
 }
