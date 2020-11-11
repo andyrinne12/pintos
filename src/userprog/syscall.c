@@ -1,12 +1,14 @@
-#include "userprog/syscall.h"
-#include "userprog/process.h"
+#include "../userprog/syscall.h"
+#include "../userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
-#include "threads/interrupt.h"
-#include "threads/thread.h"
+#include "../threads/interrupt.h"
+#include "../threads/thread.h"
 #include "../threads/vaddr.h"
 #include "../devices/shutdown.h"
+#include "../filesys/filesys.h"
 // #include <stdlib.h>
+#include <malloc.h>
 
 /* User pointers handling functions */
 static int get_user (const uint8_t *uaddr);
@@ -22,6 +24,9 @@ static void halt (void);
 static void exit (int status);
 static pid_t exec (const char *cmd_line);
 static int wait (pid_t pid);
+static bool create(const char *file, unsigned initial_size);
+static bool remove(const char *file);
+
 
 void
 syscall_init (void)
@@ -53,10 +58,19 @@ syscall_handler (struct intr_frame *f)
       break;
 	  /* Create a file. */
 	  case SYS_CREATE:
-		break;
+    {
+      const char* file = *(char**)(f->esp + 1);
+      unsigned initial_size = *(unsigned*)(f->esp + 2);
+      f->eax = create(file, initial_size);
+      break;
+    }
 	  /* Delete a file. */
 	  case SYS_REMOVE:
-		break;
+    {
+      const char* file = *(char**)(f -> esp + 1);
+      f->eax = remove(file);
+      break;
+    }
 	  /* Open a file. */
 	  case SYS_OPEN:
 		break;
@@ -194,3 +208,21 @@ static bool is_valid_string (void *straddr)
 }
 
 // -----------------------------------------------------------------
+
+static bool create(const char *file, unsigned initial_size){
+  bool result;
+  result = is_valid_string(file);
+  // lock_acquire();
+  result = filesys_create(file, initial_size);
+  // lock_release();
+  return result;
+}
+
+static bool remove(const char *file){
+  bool result;
+  is_valid_string(file);
+  // lock_acquire();
+  result = filesys_remove(file);
+  // lock_release();
+  return result;
+}
