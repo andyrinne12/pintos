@@ -5,6 +5,7 @@
 #include "../threads/interrupt.h"
 #include "../threads/thread.h"
 #include "../threads/vaddr.h"
+#include "../threads/malloc.h"
 #include "../devices/shutdown.h"
 #include "../filesys/filesys.h"
 
@@ -44,30 +45,35 @@ syscall_handler (struct intr_frame *f)
 	{
 	  /* Halt the operating system. */
 	  case SYS_HALT:
-	    halt();
+    {
+      halt();
 		  break;
-
+    }
 	  /* Terminate this process. */
 	  case SYS_EXIT:
-	    exit(0);
+    {
+      int status = *load_address(f->esp + ARG_STEP);
+      exit(status);
 		  break;
-
+    }
 	  /* Start another process. */
 	  case SYS_EXEC:
-      	exec(NULL);
+    {
+      exec(NULL);
 		  break;
-
+    }
 	  /* Wait for a child process to die. */
 	  case SYS_WAIT:
-      	wait(0);
-      	  break;
-
+    {
+      wait(0);
+      break;
+    }
 	  /* Create a file. */
 	  case SYS_CREATE:
 		{
-//		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
 		  const char *file = load_address(COMPUTE_ARG_1(f->esp));
 		  unsigned initial_size = *(unsigned *)(COMPUTE_ARG_2(f->esp));
+
 		  f->eax = create (file, initial_size);
 		  break;
 		}
@@ -75,7 +81,6 @@ syscall_handler (struct intr_frame *f)
 	  /* Delete a file. */
 	  case SYS_REMOVE:
 		{
-//		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
 		  const char *file = load_address(COMPUTE_ARG_1(f->esp));
 		  f->eax = remove (file);
 		  break;
@@ -133,19 +138,34 @@ static pid_t exec (const char* cmd_line)
   pid_t pid = process_execute(cmd_line);
 
   if(pid == TID_ERROR)
-  return -1;
+    return -1;
 
   struct thread *cur = thread_current();
 
-  struct child_process *child = malloc(sizeof(struct child_process));
+  struct child_status *child = malloc(sizeof(struct child_status));
 
   if(child == NULL){
-  // TODO: Handle early termination
+    // TODO: Handle early termination
+    return -1;
   }
 
+  list_push_back(&cur->process_w.children_processes, &child->child_elem);
   child->pid = pid;
 
-  return pid;
+  struct thread *child_t;
+  child_t = get_thread(pid);
+
+  /* Check if child process is already terminated (successfully or not)
+   and if not wait for it to finish loading */
+  if(is_thread(child_t) && child_t->status != THREAD_DYING)
+    sema_down(&child_t->process_w.loaded_sema);
+
+  /* By this time the child process should have communicated its loaded status
+    to its parent */
+  if(child->loaded == LOADED_SUCCESS)
+    return pid;
+  else
+    return -1;
 }
 
 static int wait (pid_t pid)

@@ -7,9 +7,18 @@
 #define ARGS_MAX_SIZE 128 /* Maximum space allocated for arguments in stack */
 #define ARGS_MAX_COUNT 16 /* Maximum number of arguments passed to program */
 
+#define LOADED_SUCCESS 1
+#define LOADED_FAILED -1
+
 typedef int pid_t;
 
-struct child_process
+enum STATUS_UPDATE_TYPE
+{
+  STATUS_LOADED,
+  STATUS_FINISHED
+};
+
+struct child_status
 {
   pid_t pid;                            /* Child process pid */
   struct list_elem child_elem;          /* Children list elem */
@@ -23,6 +32,7 @@ struct process_wrapper
   struct semaphore loaded_sema;         /* Process loaded semaphore */
   struct semaphore finished_sema;       /* Process finished semaphore */
   struct list children_processes;       /* Children processes */
+  struct lock child_list_lock;          /* Children list lock */
 };
 
 /* Computes the next adress where a byte should start */

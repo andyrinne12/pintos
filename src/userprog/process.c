@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -14,6 +13,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -22,6 +22,8 @@ static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static void push_arguments(struct intr_frame* if_, char* first_token,
   char* arguments);
+static void update_child_status(struct thread *parent, pid_t child_pid,
+  int status, enum STATUS_UPDATE_TYPE type);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -90,6 +92,16 @@ start_process (void *command_line_)
   /* Push arguments on the stack */
   push_arguments(&if_, file_name, arguments);
 
+  /* Let parent process know that it loaded successfully and up semaphore */
+
+  struct thread *cur = thread_current();
+  struct thread *parent = get_thread(cur->process_w.parent_pid);
+
+  if(is_thread(parent) && parent->status != THREAD_DYING)
+    update_child_status(parent, cur->tid, LOADED_SUCCESS, STATUS_LOADED);
+
+  sema_up(&cur->process_w.loaded_sema);
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -110,7 +122,7 @@ start_process (void *command_line_)
  * This function will be implemented in task 2.
  * For now, it does nothing. */
 int
-process_wait (tid_t child_tid UNUSED)
+process_wait (tid_t child_tid)
 {
   for(;;) {
 
@@ -124,6 +136,22 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  enum intr_level old_level = intr_disable();
+
+  /* Free children processes list when terminating */
+  struct process_wrapper process_w = cur->process_w;
+  struct list *children = &process_w.children_processes;
+  struct list_elem *e;
+  for(e = list_begin(children); e != list_end(children); e = list_next(e))
+  {
+    struct child_status *child;
+    child = list_entry(e, struct child_status, child_elem);
+    e = list_remove(e);
+    free(child);
+  }
+
+  intr_set_level(old_level);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -553,4 +581,33 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
 
   /* Testing should work after system calls are implemented */
   hex_dump(0, if_->esp, PHYS_BASE - if_->esp, 0);
+}
+
+/* Called by child process to update its status inside the children list of
+  its parent process. Updates the status of either LOADED or EXIT_STATUS
+  depending on the STATUS_UPDATE_TYPE enum. */
+static void
+update_child_status(struct thread *parent, pid_t child_pid,
+  int status, enum STATUS_UPDATE_TYPE type)
+{
+  struct list_elem *e;
+  struct child_status *child;
+  struct list *children = &parent->process_w.children_processes;
+
+  enum intr_level old_level = intr_disable();
+  // REVIEW: Can we use locks instead of interrupt disable
+
+  for(e = list_begin(children); e != list_end(children); e = list_next(e))
+  {
+    child = list_entry(e, struct child_status, child_elem);
+    if(child->pid == child_pid){
+      if(type == STATUS_LOADED)
+        child->loaded = status;
+      else
+        child->exit_status = status;
+      break;
+    }
+  }
+
+  intr_set_level(old_level);
 }

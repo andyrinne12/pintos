@@ -159,15 +159,14 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool
-priority_comp_func (const struct list_elem *a, const struct list_elem *b,
-                    void *aux UNUSED);
+bool priority_comp_func (const struct list_elem *a,
+	const struct list_elem *b, void *aux UNUSED);
 
 int priority_bounds (int priority);
 int thread_get_priority_helper (struct thread *t);
 void recent_cpu_function (struct thread *thread, void *aux UNUSED);
 void new_priority (struct thread *thread, void * aux UNUSED);
 
-struct list* get_ready_list(void);
-void sort_ready_list(void);
+bool is_thread(struct thread *thread);
+struct thread* get_thread(pid_t pid);
 #endif /* threads/thread.h */

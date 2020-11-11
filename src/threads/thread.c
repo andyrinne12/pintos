@@ -16,6 +16,7 @@
 
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "userprog/syscall.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -53,6 +54,10 @@ static struct lock tid_lock;
 
 static struct lock set_priority_lock;
 
+/* Lock used to search thread in all_list by pid */
+
+static struct lock all_list_lock;
+
 int32_t load_avg = INT_TO_FIXED(0);
 
 /* Stack frame for kernel_thread(). */
@@ -89,7 +94,6 @@ static tid_t allocate_tid (void);
 bool
 priority_comp_func (const struct list_elem *a, const struct list_elem *b,
 					void *aux UNUSED);
-static bool is_thread (struct thread *) UNUSED;
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -110,6 +114,7 @@ static bool is_thread (struct thread *) UNUSED;
 
   lock_init (&tid_lock);
   lock_init (&set_priority_lock);
+  lock_init (&all_list_lock);
   list_init (&ready_list);
   list_init (&all_list);
   list_init (&ready_list_mlfqs);
@@ -221,10 +226,6 @@ thread_tick (void)
 
   if (++thread_ticks >= TIME_SLICE){
     t->last_tick = kernel_ticks;
-    if (!thread_mlfqs)
-	  {
-		sort_ready_list ();
-	  }
     intr_yield_on_return ();
   }
 }
@@ -405,6 +406,11 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current ()->allelem);
   thread_current ()->status = THREAD_DYING;
+
+  int exit_status = EXIT_SUCCESS;
+  // REVIEW: Where do we get status from
+  // TODO: Set exit code in parrent and release semaphore
+
   schedule ();
   NOT_REACHED ();
 }
@@ -621,8 +627,29 @@ running_thread (void)
   return pg_round_down (esp);
 }
 
+/* Called by parent process waiting for the child to finish loading
+  using loading_sema inside the thread */
+struct thread*
+get_thread (pid_t pid)
+{
+  struct thread *thread = NULL;
+  struct list_elem *e;
+  lock_acquire(&all_list_lock);
+  for(e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    if(t->tid == pid)
+    {
+      thread = t;
+      break;
+    }
+  }
+  lock_release(&all_list_lock);
+  return thread;
+}
+
 /* Returns true if T appears to point to a valid thread. */
-static bool
+bool
 is_thread (struct thread *t)
 {
   return t != NULL && t->magic == THREAD_MAGIC;
@@ -655,6 +682,7 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init(&t->process_w.loaded_sema, 0);
   sema_init(&t->process_w.finished_sema, 0);
   list_init(&t->process_w.children_processes);
+  lock_init(&t->process_w);
 
   list_init (&t->donations);
 
@@ -809,16 +837,4 @@ priority_comp_func (const struct list_elem *a, const struct list_elem *b,
 	  return t1->recent_cpu < t2 ->recent_cpu;
 	}
     return (t1->last_tick < t2->last_tick);
-}
-
-void
-sort_ready_list (void)
-{
-  list_sort(&ready_list, priority_comp_func, NULL);
-}
-
-struct list*
-get_ready_list (void)
-{
-  return &ready_list;
 }

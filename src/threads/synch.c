@@ -228,7 +228,6 @@ lock_acquire (struct lock *lock)
 		thread_current ()->thread_waits_lock = lock;
 		//--
 		list_insert_ordered (&lock->holder->donations, &cur->donation_elem, priority_donate_comp_func, NULL);
-		sort_ready_list ();
 	  }
 
   intr_set_level (old_level);
