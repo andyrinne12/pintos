@@ -11,7 +11,8 @@
 /* User pointers handling functions */
 static int get_user (const uint8_t *uaddr);
 static bool put_user (uint8_t *udst, uint8_t byte);
-static uint32_t load_memory_address(void *vaddr);
+static uint32_t load_number(void *vaddr);
+static char * load_address(void *vaddr);
 static bool is_valid_buffer (void *baddr, int size);
 static bool is_valid_string (const char *str);
 
@@ -38,7 +39,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f)
 {
-  uint32_t sys_call_number = load_memory_address(f->esp);
+  uint32_t sys_call_number = load_number(f->esp);
   switch (sys_call_number)
 	{
 	  /* Halt the operating system. */
@@ -64,7 +65,8 @@ syscall_handler (struct intr_frame *f)
 	  /* Create a file. */
 	  case SYS_CREATE:
 		{
-		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
+//		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
+		  const char *file = load_address(COMPUTE_ARG_1(f->esp));
 		  unsigned initial_size = *(unsigned *)(COMPUTE_ARG_2(f->esp));
 		  f->eax = create (file, initial_size);
 		  break;
@@ -73,7 +75,8 @@ syscall_handler (struct intr_frame *f)
 	  /* Delete a file. */
 	  case SYS_REMOVE:
 		{
-		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
+//		  const char *file = *(char **)(COMPUTE_ARG_1(f->esp));
+		  const char *file = load_address(COMPUTE_ARG_1(f->esp));
 		  f->eax = remove (file);
 		  break;
 		}
@@ -121,7 +124,7 @@ static void halt(void)
 /* Terminates the current user program, sending its exit status to the kernel.*/
 static void exit(int status)
 {
-  printf("%s: exit(%d)", thread_current()->name, status);
+  printf("%s: exit(%d)\n", thread_current()->name, status);
   thread_exit();
 }
 
@@ -155,7 +158,11 @@ static int wait (pid_t pid)
  * Creating a new file does not open it! */
 static bool create(const char *file, unsigned initial_size){
   bool result;
-  result = is_valid_string(file);
+
+  /* Check validity of file string and exit immediately if false */
+  if (!is_valid_string(file))
+	return false;
+
   lock_acquire(&file_sys_lock);
   result = filesys_create(file, initial_size);
   lock_release(&file_sys_lock);
@@ -165,7 +172,11 @@ static bool create(const char *file, unsigned initial_size){
 /* Deletes the file called file. Returns true if successful, false otherwise. */
 static bool remove(const char *file){
   bool result;
-  is_valid_string(file);
+
+  /* Check validity of file string and exit immediately if false */
+  if (is_valid_string(file))
+	return false;
+
   lock_acquire(&file_sys_lock);
   result = filesys_remove(file);
   lock_release(&file_sys_lock);
@@ -210,13 +221,24 @@ put_user (uint8_t *udst, uint8_t byte)
 
 /* Receives a memory address and validates it.
  * If successful, it dereferences the stack pointer.
- * Otherwise, it terminates the user process.*/
-static uint32_t load_memory_address(void *vaddr)
+ * Otherwise, it terminates the user process. */
+static uint32_t load_number(void *vaddr)
 {
   if (get_user ((uint8_t *) vaddr) == -1) {
 	  exit(EXIT_FAIL);
 	}
   return *((uint32_t *) vaddr);
+}
+
+/* Receives a memory address and validates it.
+ * If successful, it dereferences the stack pointer.
+ * Otherwise, it terminates the user process. */
+static char* load_address(void *vaddr)
+{
+  if (get_user ((uint8_t *) vaddr) == -1) {
+	  exit(EXIT_FAIL);
+	}
+  return *((char **) vaddr);
 }
 
 /* Handles special case of buffer inspection. */
