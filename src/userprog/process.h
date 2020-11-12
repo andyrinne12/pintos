@@ -11,17 +11,10 @@
 
 typedef int pid_t;
 
-enum STATUS_UPDATE_TYPE
-{
-  STATUS_LOADED,
-  STATUS_FINISHED
-};
-
 struct child_status
 {
   pid_t pid;                            /* Child process pid */
   struct list_elem child_elem;          /* Children list elem */
-  int loaded;                           /* Process loaded (1 if true) */
   int exit_status;                      /* Process exit status */
 };
 

@@ -164,44 +164,11 @@ static void exit(int status)
 static pid_t exec (const char* cmd_line)
 {
   pid_t pid = process_execute(cmd_line);
-
-  if(pid == TID_ERROR)
-    return -1;
-
-  struct thread *cur = thread_current();
-
-  struct child_status *child = malloc(sizeof(struct child_status));
-
-  if(child == NULL){
-    // TODO: Handle early termination
-    // exit(EXIT_FAIL); maybe ??
-    return -1;
-  }
-
-  list_push_back(&cur->process_w.children_processes, &child->child_elem);
-  child->pid = pid;
-
-  struct thread *child_t;
-  child_t = get_thread(pid);
-
-  /* Check if child process is already terminated (successfully or not)
-   and if not wait for it to finish loading */
-  if(is_thread(child_t) && child_t->status != THREAD_DYING)
-    sema_down(&child_t->process_w.loaded_sema);
-
-  /* By this time the child process should have communicated its loaded status
-    to its parent */
-  if(child->loaded == LOADED_SUCCESS)
-    return pid;
-  else
-    return -1;
+  return pid;
 }
 
 static int wait (pid_t pid)
 {
-  while(1){
-
-  }
   return process_wait(pid);
 }
 

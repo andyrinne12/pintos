@@ -24,7 +24,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static void push_arguments(struct intr_frame* if_, char* first_token,
   char* arguments);
 static void update_child_status(struct thread *parent, pid_t child_pid,
-  int status, enum STATUS_UPDATE_TYPE type);
+  int status);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -55,8 +55,42 @@ process_execute (const char *command_line)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, cmd_line_copy);
   if (tid == TID_ERROR)
-	palloc_free_page (cmd_line_copy);
-  return tid;
+  {
+	   palloc_free_page (cmd_line_copy);
+     return -1;
+  }
+
+  struct thread *cur = thread_current();
+  struct child_status *child = malloc(sizeof(struct child_status));
+
+  if(child == NULL){
+    // TODO: Handle early termination
+    // exit(EXIT_FAIL); maybe ??
+    return -1;
+  }
+
+  list_push_back(&cur->process_w.children_processes, &child->child_elem);
+  child->pid = tid;
+
+  struct thread *child_t = get_thread(tid);
+
+  printf("CHILD FOUND\n");
+
+  /* Check if child process is already terminated (successfully or not)
+   and if not wait for it to finish loading */
+  if(is_thread(child_t) && child_t->status != THREAD_DYING){
+    printf("WAITING FOR CHILD TO LOAD\n");
+    sema_down(&child_t->process_w.loaded_sema);
+  }
+
+  printf("LOADED\n");
+
+  /* By this time the child process should have communicated its loaded status
+    to its parent */
+  if(child->exit_status == EXIT_SUCCESS)
+    return tid;
+  else
+    return -1;
 }
 
 /* A thread function that loads a user process and starts it
@@ -99,9 +133,11 @@ start_process (void *command_line_)
   struct thread *parent = cur->process_w.parent_t;
 
   if(is_thread(parent) && parent->status != THREAD_DYING)
-    update_child_status(parent, cur->tid, LOADED_SUCCESS, STATUS_LOADED);
+    update_child_status(parent, cur->tid, LOADED_SUCCESS);
 
   sema_up(&cur->process_w.loaded_sema);
+
+  printf("SEMA REACHED\n");
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -122,7 +158,7 @@ start_process (void *command_line_)
 int
 process_wait (tid_t child_tid)
 {
-  while(1){}
+  printf("WAITING\n");
   struct list_elem *e;
   struct list *children = &thread_current () ->process_w.children_processes;
   struct child_status *child_s;
@@ -142,12 +178,18 @@ process_wait (tid_t child_tid)
       if(is_thread(child_t) && child_t->status != THREAD_DYING)
         sema_down(&child_t ->process_w.finished_sema);
 
+      list_remove(&child_s->child_elem);
       return child_s->exit_status;
+    }
+    else
+    {
+      e = list_next(e);
     }
   }
 
   /* If child was not in the list it is either not a valid child or
     wait has already been called on it */
+  printf("NO CHILD FOUND ffs\n");
   return -1;
 }
 
@@ -155,6 +197,7 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
+  printf("EXITING\n");
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
@@ -183,7 +226,7 @@ process_exit (void)
   struct thread *parent = cur->process_w.parent_t;
 
   if(is_thread(parent) && parent->status != THREAD_DYING)
-    update_child_status(parent, cur->tid, exit_status, STATUS_FINISHED);
+    update_child_status(parent, cur->tid, exit_status);
 
   sema_up(&cur->process_w.finished_sema);
 
@@ -635,7 +678,7 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
   depending on the STATUS_UPDATE_TYPE enum. */
 static void
 update_child_status(struct thread *parent, pid_t child_pid,
-  int status, enum STATUS_UPDATE_TYPE type)
+  int status)
 {
   struct list_elem *e;
   struct child_status *child;
@@ -648,10 +691,7 @@ update_child_status(struct thread *parent, pid_t child_pid,
   {
     child = list_entry(e, struct child_status, child_elem);
     if(child->pid == child_pid){
-      if(type == STATUS_LOADED)
-        child->loaded = status;
-      else
-        child->exit_status = status;
+      child->exit_status = status;
       break;
     }
   }
