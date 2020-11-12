@@ -2,6 +2,7 @@
 #include "../userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <file.h>
 #include "../threads/interrupt.h"
 #include "../threads/thread.h"
 #include "../threads/vaddr.h"
@@ -26,15 +27,31 @@ static pid_t exec (const char *cmd_line);
 static int wait (pid_t pid);
 static bool create(const char *file, unsigned initial_size);
 static bool remove(const char *file);
+static int open(const char *file);
+static int filesize(int fd);
 
 /* File system lock */
 struct lock file_sys_lock;
+
+/* List with the open files */
+struct list files_opened;
+
+/* structure for the file descriptors */
+struct file_descriptor
+{
+  int num;
+  tid_t owner;
+  struct file *file_struct;
+  struct list_elem elem;
+};
+
 
 void
 syscall_init (void)
 {
   lock_init(&file_sys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  list_init(&files_opened);
 }
 
 static void
@@ -88,10 +105,18 @@ syscall_handler (struct intr_frame *f)
 
 	  /* Open a file. */
 	  case SYS_OPEN:
+    {
+      // const char *file = load_address(COMPUTE_ARG_1(f->esp));
+    }
 		break;
 
 	  /* Obtain a file's size. */
 	  case SYS_FILESIZE:
+    {
+      int fd = *(int*)(f->esp + 4);
+      // const int fd = load_address(COMPUTE_ARG_1(f->esp));
+      f->eax = filesize(fd);
+    }
 		break;
 
 	  /* Read from a file. */
@@ -201,6 +226,46 @@ static bool remove(const char *file){
   result = filesys_remove(file);
   lock_release(&file_sys_lock);
   return result;
+}
+
+/*Opens the file called file. Returns a non negative integer handle called
+ * a “file descriptor” (fd),or -1 if the file could not be opened */
+static int open(const char *file){
+  struct file_descriptor *fd;
+  struct file *new_file;
+
+  /* Check validity of file string and exit immediately if false */
+  if(!is_valid_string(file))
+    return -1;
+
+  lock_acquire(&file_sys_lock);
+  new_file = filesys_open(file);
+
+  if(new_file != NULL){
+    fd = calloc(1, sizeof(*fd));
+    fd->num++;
+    fd->owner = thread_current()->tid;
+    fd->file_struct = new_file;
+    list_push_back(&files_opened, &fd->elem);
+    return fd->num;
+  }
+  lock_release(&file_sys_lock);
+  return -1;
+}
+
+/* Returns the size, in bytes, of the file open as fd */
+static int filesize (int fd)
+{
+  struct file_descriptor *descriptor;
+  int size = -1;
+  lock_acquire (&file_sys_lock);
+  // descriptor takes the value of of the open file
+
+  if (descriptor != NULL)
+    size = file_length (descriptor->file_struct);
+
+  lock_release (&file_sys_lock);
+  return size;
 }
 
 // -----------------------------------------------------------------
