@@ -1,3 +1,0 @@
-/home/matrix/Desktop/pintos_15/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/matrix/Desktop/pintos_15/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/matrix/Desktop/pintos_15/cmake-build-debug/CMakeFiles/pintos_15.dir
