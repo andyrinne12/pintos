@@ -541,6 +541,8 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
 
   int argc = 0; /* number of arguments */
 
+  void *init_esp = if_->esp;
+
   /* Initially addresses of arguments in the stack */
   char* arg_address[ARGS_MAX_COUNT];
 
@@ -556,19 +558,27 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
       // TODO: Signal invalid arguments size
       break;
     }
-    arg_address[++argc] = if_->esp;
-    memset(if_->esp, 0, sizeof(char));
     if_->esp -= sizeof(char);
-    memcpy(if_->esp, token, token_memory);
-    if_->esp -= token_memory;
+    memset(if_->esp, 0, sizeof(char));
+
+    if_->esp -= (token_memory - 1);
+    arg_address[argc++] = if_->esp;
+    memcpy(if_->esp, token, (token_memory - 1));
+
     used_memory += token_memory;
 
     token = strtok_r(NULL, " ", &arguments);
   }
+  argc--;
 
-  if_->esp = last_address_alligned(if_->esp) - sizeof(char*) * argc;
+  if_->esp = last_address_alligned(if_->esp) - sizeof(char*) * (argc + 1);
 
-  for(int i = 0; i < argc; i++){
+  for(int i = 0; i < argc + 1; i++){
+    if(i == argc)
+    {
+      memset(if_->esp + i * sizeof(char*), 0, sizeof(char*));
+      continue;
+    }
     memcpy(if_->esp + i * sizeof(char*), &arg_address[i], sizeof(char*));
   }
 
@@ -581,10 +591,11 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
 
   /* return address 0 */
   if_->esp -= sizeof(void (*)(void));
+  memset(if_->esp, 0, sizeof(void (*)(void)));
 
 
   /* Testing should work after system calls are implemented */
-  hex_dump(0, if_->esp, PHYS_BASE - if_->esp, 0);
+  hex_dump(0, if_->esp, init_esp - if_->esp, 1);
 }
 
 /* Called by child process to update its status inside the children list of

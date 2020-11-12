@@ -63,7 +63,7 @@ syscall_handler (struct intr_frame *f)
 	  /* Terminate this process. */
 	  case SYS_EXIT:
     {
-      int status = *load_address(f->esp + ARG_STEP);
+      int status = *load_number(f->esp + ARG_STEP);
       exit(status);
 		  break;
     }
