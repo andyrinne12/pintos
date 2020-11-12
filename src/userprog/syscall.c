@@ -15,7 +15,7 @@ static int get_user (const uint8_t *uaddr);
 static bool put_user (uint8_t *udst, uint8_t byte);
 static uint32_t load_number(void *vaddr);
 static char * load_address(void *vaddr);
-static bool is_valid_buffer (void *baddr, int size);
+static bool is_valid_buffer (const void *baddr, int size);
 static bool is_valid_string (const char *str);
 
 static void syscall_handler (struct intr_frame *);
@@ -29,22 +29,16 @@ static bool create(const char *file, unsigned initial_size);
 static bool remove(const char *file);
 static int open(const char *file);
 static int filesize(int fd);
+static int write (int fd, const void * buffer, unsigned size);
+
+/* Helpers */
+static void * find_file(int fd);
 
 /* File system lock */
-struct lock file_sys_lock;
+static struct lock file_sys_lock;
 
 /* List with the open files */
-struct list files_opened;
-
-/* structure for the file descriptors */
-struct file_descriptor
-{
-  int num;
-  tid_t owner;
-  struct file *file_struct;
-  struct list_elem elem;
-};
-
+static struct list files_opened;
 
 void
 syscall_init (void)
@@ -105,18 +99,19 @@ syscall_handler (struct intr_frame *f)
 
 	  /* Open a file. */
 	  case SYS_OPEN:
-    {
-      // const char *file = load_address(COMPUTE_ARG_1(f->esp));
-    }
+    	{
+    	  const char *file = load_address(COMPUTE_ARG_1(f->esp));
+    	  f->eax = open (file);
+    	}
 		break;
 
 	  /* Obtain a file's size. */
 	  case SYS_FILESIZE:
-    {
-      int fd = *(int*)(f->esp + 4);
-      // const int fd = load_address(COMPUTE_ARG_1(f->esp));
-      f->eax = filesize(fd);
-    }
+    	{
+    	  int fd = *(int*)(COMPUTE_ARG_1(f->esp));
+    	  // const int fd = load_address(COMPUTE_ARG_1(f->esp));
+    	  f->eax = filesize (fd);
+    	}
 		break;
 
 	  /* Read from a file. */
@@ -125,6 +120,12 @@ syscall_handler (struct intr_frame *f)
 
 	  /* Write to a file. */
 	  case SYS_WRITE:
+		{
+		  int fd = load_number(COMPUTE_ARG_0(f->esp));
+		  void *buffer = load_address(COMPUTE_ARG_1(f->esp));
+		  unsigned size = load_number(COMPUTE_ARG_2(f->esp));
+		  f->eax = write(fd, buffer, size);
+		}
 		break;
 
 	  /* Change position in a file. */
@@ -171,6 +172,7 @@ static pid_t exec (const char* cmd_line)
 
   if(child == NULL){
     // TODO: Handle early termination
+    // exit(EXIT_FAIL); maybe ??
     return -1;
   }
 
@@ -228,7 +230,7 @@ static bool remove(const char *file){
   return result;
 }
 
-/*Opens the file called file. Returns a non negative integer handle called
+/* Opens the file called "file". Returns a non negative integer handle called
  * a “file descriptor” (fd),or -1 if the file could not be opened */
 static int open(const char *file){
   struct file_descriptor *fd;
@@ -241,7 +243,8 @@ static int open(const char *file){
   lock_acquire(&file_sys_lock);
   new_file = filesys_open(file);
 
-  if(new_file != NULL){
+  if(new_file != NULL)
+  {
     fd = calloc(1, sizeof(*fd));
     fd->num++;
     fd->owner = thread_current()->tid;
@@ -261,11 +264,47 @@ static int filesize (int fd)
   lock_acquire (&file_sys_lock);
   // descriptor takes the value of of the open file
 
+  descriptor = find_file(fd);
+
+  /* If any file was found, get its size here */
   if (descriptor != NULL)
     size = file_length (descriptor->file_struct);
 
   lock_release (&file_sys_lock);
   return size;
+}
+
+/* Writes size bytes from buffer to the open file fd. Returns the number of
+ * bytes actually written. */
+static int write (int fd UNUSED, const void * buffer , unsigned size)
+{
+  /* Check validity of buffer and exit immediately if false */
+  if(!is_valid_buffer(buffer, size))
+	return 0;
+
+  putbuf (buffer, size);
+  return size;
+}
+
+// ----------------------------------------------------------------
+
+/* Iterate through the opened files and retrieve the one with num = fd */
+static void * find_file(int fd)
+{
+  if (!list_empty(&files_opened))
+	{
+	  struct list_elem *e;
+	  for (e = list_begin (&files_opened); e != list_end (&files_opened);
+		   e = list_next (e))
+		{
+		  struct file_descriptor *curr;
+		  curr = list_entry (e, struct file_descriptor, elem);
+		  if (curr->num == fd)
+			return curr;
+
+		}
+	}
+  return NULL;
 }
 
 // -----------------------------------------------------------------
@@ -327,7 +366,7 @@ static char* load_address(void *vaddr)
 }
 
 /* Handles special case of buffer inspection. */
-static bool is_valid_buffer (void *baddr, int size)
+static bool is_valid_buffer (const void *baddr, int size)
 {
   char *buffer = (char *) baddr;
   for (int i = 1; i < size; i++)
