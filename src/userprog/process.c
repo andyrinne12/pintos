@@ -140,9 +140,13 @@ process_exit (void)
   enum intr_level old_level = intr_disable();
 
   /* Free children processes list when terminating */
-  struct process_wrapper process_w = cur->process_w;
-  struct list *children = &process_w.children_processes;
+  struct process_wrapper *process_w = &cur->process_w;
+  struct list *children = &process_w->children_processes;
   struct list_elem *e;
+
+  ASSERT(process_w);
+  ASSERT(children);
+
   for(e = list_begin(children); e != list_end(children); e = list_next(e))
   {
     struct child_status *child;

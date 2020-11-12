@@ -682,7 +682,7 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init(&t->process_w.loaded_sema, 0);
   sema_init(&t->process_w.finished_sema, 0);
   list_init(&t->process_w.children_processes);
-  lock_init(&t->process_w);
+  lock_init(&t->process_w.child_list_lock);
 
   list_init (&t->donations);
 

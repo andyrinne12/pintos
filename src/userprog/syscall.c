@@ -2,13 +2,13 @@
 #include "../userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
-#include <file.h>
 #include "../threads/interrupt.h"
 #include "../threads/thread.h"
 #include "../threads/vaddr.h"
 #include "../threads/malloc.h"
 #include "../devices/shutdown.h"
 #include "../filesys/filesys.h"
+#include "../filesys/file.h"
 
 /* User pointers handling functions */
 static int get_user (const uint8_t *uaddr);
