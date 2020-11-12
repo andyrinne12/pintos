@@ -25,11 +25,14 @@ static void halt (void);
 static void exit (int status);
 static pid_t exec (const char *cmd_line);
 static int wait (pid_t pid);
-static bool create(const char *file, unsigned initial_size);
-static bool remove(const char *file);
-static int open(const char *file);
-static int filesize(int fd);
+static bool create (const char *file, unsigned initial_size);
+static bool remove (const char *file);
+static int open (const char *file);
+static int filesize (int fd);
 static int write (int fd, const void * buffer, unsigned size);
+static void seek (int fd, unsigned position);
+static unsigned tell (int fd);
+static void close(int fd);
 
 /* Helpers */
 static void * find_file(int fd);
@@ -257,6 +260,51 @@ static int write (int fd UNUSED, const void * buffer , unsigned size)
   putbuf (buffer, size);
   return size;
 }
+
+/* Changes the next byte to be read or written in open file fd to position */
+static void seek(int fd, unsigned position)
+{
+  struct file_descriptor *descriptor;
+  lock_acquire (&file_sys_lock);
+
+  descriptor = find_file(fd);
+  if (descriptor != NULL)
+  {
+    file_seek (descriptor->file_struct, position);
+  }
+  lock_release (&file_sys_lock);
+}
+
+/* Returns the position of the next byte to be read / written in open file fd */
+static unsigned tell (int fd)
+{
+  int position = 0;
+  struct file_descriptor *descriptor;
+  lock_acquire (&file_sys_lock);
+
+  descriptor = find_file(fd);
+  if (descriptor != NULL){
+    position = file_tell (descriptor->file_struct);
+  }
+  lock_release (&file_sys_lock);
+  return position;
+}
+
+/* Exiting or terminating a process implicitly closes all its open file
+ * descriptors, as if by calling this function for each one. */
+static void close (int fd)
+{
+  struct file_descriptor *descriptor;
+  lock_acquire (&file_sys_lock);
+  descriptor = find_file (fd);
+  if (descriptor != NULL && thread_current ()->tid == descriptor->owner)
+  {
+    // close the open file
+  }
+  lock_release (&file_sys_lock);
+}
+
+
 
 // ----------------------------------------------------------------
 
