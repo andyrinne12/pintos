@@ -1,4 +1,5 @@
 #include "userprog/process.h"
+#include "userprog/syscall.h"
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
@@ -95,7 +96,7 @@ start_process (void *command_line_)
   /* Let parent process know that it loaded successfully and up semaphore */
 
   struct thread *cur = thread_current();
-  struct thread *parent = get_thread(cur->process_w.parent_pid);
+  struct thread *parent = cur->process_w.parent_t;
 
   if(is_thread(parent) && parent->status != THREAD_DYING)
     update_child_status(parent, cur->tid, LOADED_SUCCESS, STATUS_LOADED);
@@ -117,16 +118,36 @@ start_process (void *command_line_)
  * returns -1.
  * If TID is invalid or if it was not a child of the calling process, or if
  * process_wait() has already been successfully called for the given TID,
- * returns -1 immediately, without waiting.
- *
- * This function will be implemented in task 2.
- * For now, it does nothing. */
+ * returns -1 immediately, without waiting. */
 int
 process_wait (tid_t child_tid)
 {
-  for(;;) {
+  while(1){}
+  struct list_elem *e;
+  struct list *children = &thread_current () ->process_w.children_processes;
+  struct child_status *child_s;
 
+  /* There are no races on the children list because it is only modified
+    in an interrupts disabled context */
+
+  for(e = list_begin(children); e != list_end(children);)
+  {
+    child_s = list_entry(e, struct child_status, child_elem);
+    if(child_s -> pid == child_tid)
+    {
+      struct thread *child_t = get_thread(child_tid);
+
+      /* If the child thread is still alive wait for it to finish
+        and then exit status will already be updated by the child */
+      if(is_thread(child_t) && child_t->status != THREAD_DYING)
+        sema_down(&child_t ->process_w.finished_sema);
+
+      return child_s->exit_status;
+    }
   }
+
+  /* If child was not in the list it is either not a valid child or
+    wait has already been called on it */
   return -1;
 }
 
@@ -136,6 +157,10 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  int exit_status = cur->process_w.exit_status;
+
+  printf("%s: exit(%d)\n", cur->name, exit_status);
 
   enum intr_level old_level = intr_disable();
 
@@ -154,6 +179,13 @@ process_exit (void)
     e = list_remove(e);
     free(child);
   }
+
+  struct thread *parent = cur->process_w.parent_t;
+
+  if(is_thread(parent) && parent->status != THREAD_DYING)
+    update_child_status(parent, cur->tid, exit_status, STATUS_FINISHED);
+
+  sema_up(&cur->process_w.finished_sema);
 
   intr_set_level(old_level);
 

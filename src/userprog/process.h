@@ -1,7 +1,6 @@
 #ifndef USERPROG_PROCESS_H
 #define USERPROG_PROCESS_H
 
-#include "threads/synch.h"
 #include <list.h>
 
 #define ARGS_MAX_SIZE 128 /* Maximum space allocated for arguments in stack */
@@ -24,15 +23,6 @@ struct child_status
   struct list_elem child_elem;          /* Children list elem */
   int loaded;                           /* Process loaded (1 if true) */
   int exit_status;                      /* Process exit status */
-};
-
-struct process_wrapper
-{
-  pid_t parent_pid;                     /* Parent process pid */
-  struct semaphore loaded_sema;         /* Process loaded semaphore */
-  struct semaphore finished_sema;       /* Process finished semaphore */
-  struct list children_processes;       /* Children processes */
-  struct lock child_list_lock;          /* Children list lock */
 };
 
 /* Computes the next adress where a byte should start */

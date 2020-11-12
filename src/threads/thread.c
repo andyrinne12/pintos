@@ -275,6 +275,12 @@ thread_create (const char *name, int priority, thread_func *function,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+  /* Add parent thread pointer to child */
+  t->process_w.parent_t = thread_current();
+
+  /* EXIT_SUCCESS code must be returned when terminated
+    unless something else happens */
+  t->process_w.exit_status = EXIT_SUCCESS;
 
   /* Prepare thread for first run by initializing its stack.
            Do this atomically so intermediate values for the 'stack'
@@ -406,10 +412,6 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current ()->allelem);
   thread_current ()->status = THREAD_DYING;
-
-  int exit_status = EXIT_SUCCESS;
-  // REVIEW: Where do we get status from
-  // TODO: Set exit code in parrent and release semaphore
 
   schedule ();
   NOT_REACHED ();
@@ -682,7 +684,8 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init(&t->process_w.loaded_sema, 0);
   sema_init(&t->process_w.finished_sema, 0);
   list_init(&t->process_w.children_processes);
-  lock_init(&t->process_w.child_list_lock);
+  //REVIEW: Delete later if not used
+//  lock_init(&t->process_w.child_list_lock);
 
   list_init (&t->donations);
 

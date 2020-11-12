@@ -63,20 +63,22 @@ syscall_handler (struct intr_frame *f)
 	  /* Terminate this process. */
 	  case SYS_EXIT:
     {
-      int status = *load_number(f->esp + ARG_STEP);
+      int status = load_number(f->esp + ARG_STEP);
       exit(status);
 		  break;
     }
 	  /* Start another process. */
 	  case SYS_EXEC:
     {
-      exec(NULL);
+      char* cmd_line = load_address(COMPUTE_ARG_1(f->esp));
+      exec(cmd_line);
 		  break;
     }
 	  /* Wait for a child process to die. */
 	  case SYS_WAIT:
     {
-      wait(0);
+      pid_t pid = load_number(COMPUTE_ARG_1(f->esp));
+      wait(pid);
       break;
     }
 	  /* Create a file. */
@@ -155,7 +157,7 @@ static void halt(void)
 /* Terminates the current user program, sending its exit status to the kernel.*/
 static void exit(int status)
 {
-  printf("%s: exit(%d)\n", thread_current()->name, status);
+  thread_current() ->process_w.exit_status = status;
   thread_exit();
 }
 
@@ -197,7 +199,10 @@ static pid_t exec (const char* cmd_line)
 
 static int wait (pid_t pid)
 {
-  return 0;
+  while(1){
+
+  }
+  return process_wait(pid);
 }
 
 /* Creates a new file called file initially initial size bytes in size.

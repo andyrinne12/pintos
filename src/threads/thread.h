@@ -108,7 +108,15 @@ struct thread
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint32_t *pagedir;                  /* Page directory. */
-	struct process_wrapper process_w;   /* Process wrapper of this thread */
+	struct process_wrapper
+	{
+	  struct thread *parent_t;              /* Parent process pid */
+	  struct semaphore loaded_sema;         /* Process loaded semaphore */
+	  struct semaphore finished_sema;       /* Process finished semaphore */
+	  struct list children_processes;       /* Children processes */
+		int exit_status;
+//	  struct lock child_list_lock;        /* Children list lock */
+	} process_w;														/* Process wrapper of this thread */
 #endif
 
   	int nice;
