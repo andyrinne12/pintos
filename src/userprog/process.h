@@ -4,7 +4,7 @@
 #include <list.h>
 
 #define ARGS_MAX_SIZE 128 /* Maximum space allocated for arguments in stack */
-#define ARGS_MAX_COUNT 16 /* Maximum number of arguments passed to program */
+#define ARGS_MAX_COUNT 31 /* Maximum number of arguments passed to program */
 
 #define LOADED_SUCCESS 1
 #define LOADED_FAILED -1
