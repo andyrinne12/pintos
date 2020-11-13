@@ -250,12 +250,12 @@ static int open(const char *file){
   	return -1;
   }
 
-  if (list_size(&thread_current()->files_opened) >= MAX_OPEN_FILES)
-  {
-    file_close (new_file);
-    lock_release(&file_sys_lock);
-	return -1;
-  }
+//  if (list_size(&thread_current()->files_opened) >= MAX_OPEN_FILES)
+//  {
+//    file_close (new_file);
+//    lock_release(&file_sys_lock);
+//	return -1;
+//  }
 
   fd = calloc(1, sizeof(*fd));
   fd->num = ++thread_current()->fd_count;
@@ -293,12 +293,24 @@ static int write (int fd, const void * buffer , unsigned size)
   if(!is_valid_buffer(buffer, size))
 	exit(EXIT_FAIL);
 
-  // temporary
-  if (fd == 1)
+  /* Check if write to console is needed and perform it */
+  if (fd == STDOUT_FILENO)
+  {
 	  putbuf (buffer, size);
+	  return size;
+  }
 
+  /* Find the corresponding file and write */
+  struct file_descriptor *descriptor = find_file(fd);
 
-  return size;
+  if (descriptor == NULL)
+    exit(EXIT_FAIL);
+
+  lock_acquire (&file_sys_lock);
+  int bytes_written = file_write(descriptor->file_struct, buffer, size);
+  lock_release (&file_sys_lock);
+
+  return bytes_written;
 }
 
 /* Changes the next byte to be read or written in open file fd to position */
@@ -348,17 +360,15 @@ static void close (int fd)
 static void * find_file(int fd)
 {
   struct thread *t = thread_current();
-  if (!list_empty(&t->files_opened))
+
+  struct list_elem *e;
+  for (e = list_begin (&t->files_opened); e != list_end (&t->files_opened);
+	   e = list_next (e))
 	{
-	  struct list_elem *e;
-	  for (e = list_begin (&t->files_opened); e != list_end (&t->files_opened);
-		   e = list_next (e))
-		{
-		  struct file_descriptor *curr;
-		  curr = list_entry (e, struct file_descriptor, elem);
-		  if (curr->num == fd)
-			return curr;
-		}
+	  struct file_descriptor *file_desc;
+	  file_desc = list_entry (e, struct file_descriptor, elem);
+	  if (file_desc->num == fd)
+		return file_desc;
 	}
   return NULL;
 }
