@@ -277,39 +277,35 @@ lock_release (struct lock *lock)
   enum intr_level old_level;
   old_level = intr_disable ();
 
-	if (!thread_mlfqs && !list_empty (waiters)) {
+	if (!thread_mlfqs && !list_empty (waiters))
+	{
 		struct list_elem *wake_elem;
 		struct thread *wake_thread;
 
 		wake_elem = list_min(waiters, priority_comp_func, NULL);
 		wake_thread = list_entry (wake_elem, struct thread, elem);
 
-		lock->holder = NULL;
-		sema_up (&lock->semaphore);
-
 		list_remove (&wake_thread->donation_elem);
-
-		printf("%s\n", wake_thread->name);
 
 		struct list *donations = &lock->holder->donations;
 		struct list_elem *e;
 
-		for (e = list_begin (donations); e != list_end (donations);) {
+		for (e = list_begin (donations); e != list_end (donations);)
+		{
 
-		 struct thread *donated = list_entry (e, struct thread, donation_elem);
+			struct thread *donated = list_entry (e, struct thread, donation_elem);
 
-		 if (donated->thread_waits_lock == lock) {
-		  e = list_remove (e);
-		  list_push_front (&wake_thread->donations, &donated->donation_elem);
-		 }
+			if (donated->thread_waits_lock == lock)
+		 	{
+		  	e = list_remove (e);
+	//	  	list_push_front (&wake_thread->donations, &donated->donation_elem);
+		 	}
 			else
 				e = list_next(e);
 		}
 	}
-	else {
-		lock->holder = NULL;
-		sema_up (&lock->semaphore);
-	}
+	lock->holder = NULL;
+	sema_up (&lock->semaphore);
 
 	intr_set_level (old_level);
 }
