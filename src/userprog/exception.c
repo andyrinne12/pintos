@@ -1,4 +1,5 @@
 #include "userprog/exception.h"
+#include "userprog/syscall.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
@@ -152,7 +153,8 @@ page_fault (struct intr_frame *f)
   if (!user) {
     f->eip = (void *) f->eax;
     f->eax = 0xffffffff;
-    return;
+    thread_current ()->process_w.exit_status = EXIT_FAIL;
+    thread_exit ();
   }
 
   /* To implement virtual memory, delete the rest of the function
