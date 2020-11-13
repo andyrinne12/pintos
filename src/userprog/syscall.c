@@ -54,15 +54,11 @@ static void * find_file(int fd);
 /* File system lock */
 static struct lock file_sys_lock;
 
-/* List with the open files */
-static struct list files_opened;
-
 void
 syscall_init (void)
 {
   lock_init(&file_sys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  list_init(&files_opened);
 }
 
 static void
@@ -177,7 +173,7 @@ syscall_handler (struct intr_frame *f)
 
 	  /* Handle default case. Unrecognized system call. */
 	  default:
-		break;
+	    exit(EXIT_FAIL);
 	}
 }
 
@@ -248,17 +244,27 @@ static int open(const char *file){
   lock_acquire(&file_sys_lock);
   new_file = filesys_open(file);
 
-  if(new_file != NULL)
+  if (new_file == NULL)
   {
-    fd = calloc(1, sizeof(*fd));
-    fd->num++;
-    fd->owner = thread_current()->tid;
-    fd->file_struct = new_file;
-    list_push_back(&files_opened, &fd->elem);
-    return fd->num;
+    lock_release(&file_sys_lock);
+  	return -1;
   }
-  lock_release(&file_sys_lock);
-  return -1;
+
+  if (list_size(&thread_current()->files_opened) >= MAX_OPEN_FILES)
+  {
+    file_close (new_file);
+    lock_release(&file_sys_lock);
+	return -1;
+  }
+
+  fd = calloc(1, sizeof(*fd));
+  fd->num = ++thread_current()->fd_count;
+  fd->owner = thread_current()->tid;
+  fd->file_struct = new_file;
+  list_push_back (&thread_current()->files_opened, &fd->elem);
+
+  lock_release (&file_sys_lock);
+  return fd->num;
 }
 
 /* Returns the size, in bytes, of the file open as fd */
@@ -281,13 +287,17 @@ static int filesize (int fd)
 
 /* Writes size bytes from buffer to the open file fd. Returns the number of
  * bytes actually written. */
-static int write (int fd UNUSED, const void * buffer , unsigned size)
+static int write (int fd, const void * buffer , unsigned size)
 {
   /* Check validity of buffer and exit immediately if false */
   if(!is_valid_buffer(buffer, size))
 	exit(EXIT_FAIL);
 
-  putbuf (buffer, size);
+  // temporary
+  if (fd == 1)
+	  putbuf (buffer, size);
+
+
   return size;
 }
 
@@ -334,30 +344,24 @@ static void close (int fd)
   lock_release (&file_sys_lock);
 }
 
-
-
-// ----------------------------------------------------------------
-
 /* Iterate through the opened files and retrieve the one with num = fd */
 static void * find_file(int fd)
 {
-  if (!list_empty(&files_opened))
+  struct thread *t = thread_current();
+  if (!list_empty(&t->files_opened))
 	{
 	  struct list_elem *e;
-	  for (e = list_begin (&files_opened); e != list_end (&files_opened);
+	  for (e = list_begin (&t->files_opened); e != list_end (&t->files_opened);
 		   e = list_next (e))
 		{
 		  struct file_descriptor *curr;
 		  curr = list_entry (e, struct file_descriptor, elem);
 		  if (curr->num == fd)
 			return curr;
-
 		}
 	}
   return NULL;
 }
-
-// -----------------------------------------------------------------
 
 /* Reads a byte at user virtual address UADDR.
 UADDR must be below PHYS_BASE.
@@ -376,6 +380,7 @@ get_user (const uint8_t *uaddr)
   : "=&a" (result) : "m" (*uaddr));
   return result;
 }
+
 /* Writes BYTE to user address UDST.
 UDST must be below PHYS_BASE.
 Returns true if successful, false if a segfault occurred. */
@@ -442,16 +447,16 @@ static bool is_valid_string (const char *str)
   int i = 0;
   int chr = get_user ((uint8_t *) (str + i));
 
-  if(chr == -1){
+  if(chr == -1)
     exit(EXIT_FAIL);
-  }
 
-  while (chr != '\0') {
-	  if (get_user ((uint8_t *) (str + i)) == -1)
-		return false;
-	  else
-		chr = get_user ((uint8_t *) (str + i));
+  while (chr != '\0')
+  {
+    if (get_user ((uint8_t *) (str + i)) == -1)
+      return false;
+    else
+      chr = get_user ((uint8_t *) (str + i));
     i++;
-}
+  }
   return true;
 }

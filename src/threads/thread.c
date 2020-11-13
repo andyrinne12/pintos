@@ -276,6 +276,12 @@ thread_create (const char *name, int priority, thread_func *function,
   tid = t->tid = allocate_tid ();
 
 #ifdef USERPROG
+  /* Initialize open files count to 1 */
+  t->fd_count = 1;
+
+  /* Initialize open files list */
+  list_init(&t->files_opened);
+
   /* Add parent thread pointer to child */
   t->process_w.parent_t = thread_current();
 

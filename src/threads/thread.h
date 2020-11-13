@@ -106,6 +106,12 @@ struct thread
 	struct list_elem elem;              /* List element. */
 
 //#ifdef USERPROG
+	/* List of open files */
+  	struct list files_opened;
+
+  	/* Total count of open files */
+  	int fd_count;
+
 	/* Owned by userprog/process.c. */
 	uint32_t *pagedir;                  /* Page directory. */
 	struct process_wrapper
