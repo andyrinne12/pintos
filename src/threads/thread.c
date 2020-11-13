@@ -275,12 +275,14 @@ thread_create (const char *name, int priority, thread_func *function,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+#ifdef USERPROG
   /* Add parent thread pointer to child */
   t->process_w.parent_t = thread_current();
 
   /* EXIT_SUCCESS code must be returned when terminated
     unless something else happens */
   t->process_w.exit_status = EXIT_SUCCESS;
+#endif
 
   /* Prepare thread for first run by initializing its stack.
            Do this atomically so intermediate values for the 'stack'
@@ -673,11 +675,13 @@ init_thread (struct thread *t, const char *name, int priority)
 
   sema_init(&t->timer_sema, 0);
 
+#ifdef USERPROG
   sema_init(&t->process_w.loaded_sema, 0);
   sema_init(&t->process_w.finished_sema, 0);
   list_init(&t->process_w.children_processes);
   //REVIEW: Delete later if not used
 //  lock_init(&t->process_w.child_list_lock);
+#endif
 
   list_init (&t->donations);
   t->thread_waits_lock = NULL;
