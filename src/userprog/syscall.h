@@ -12,6 +12,7 @@
 #define COMPUTE_ARG_0(x) (x)
 #define COMPUTE_ARG_1(x) ((x) + ARG_STEP)
 #define COMPUTE_ARG_2(x) ((x) + (2 * ARG_STEP))
+#define COMPUTE_ARG_3(x) ((x) + (3 * ARG_STEP))
 
 /* structure for the file descriptors */
 struct file_descriptor

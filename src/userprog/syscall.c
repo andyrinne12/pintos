@@ -10,9 +10,23 @@
 #include "../filesys/filesys.h"
 #include "../filesys/file.h"
 
+//#define DEBUG
+
+#ifdef DEBUG
+#define PRINT(format) (printf(format))
+#define PRINT_ONE_ARG(format, arg) (printf(format, arg))
+#define PRINT_TWO_ARG(format, arg1, arg2) (printf(format, arg1, arg2))
+#endif
+
+#ifndef DEBUG
+#define PRINT(format)
+#define PRINT_ONE_ARG(format, arg)
+#define PRINT_TWO_ARG(format, arg1, arg2)
+#endif
+
 /* User pointers handling functions */
 static int get_user (const uint8_t *uaddr);
-static bool put_user (uint8_t *udst, uint8_t byte);
+static bool put_user (uint8_t *udst, uint8_t byte) UNUSED;
 static uint32_t load_number(void *vaddr);
 static char * load_address(void *vaddr);
 static bool is_valid_buffer (const void *baddr, int size);
@@ -59,31 +73,35 @@ syscall_handler (struct intr_frame *f)
 	{
 	  /* Halt the operating system. */
 	  case SYS_HALT:
-    {
-      halt();
+    	{
+    	  halt();
 		  break;
-    }
+    	}
+
 	  /* Terminate this process. */
 	  case SYS_EXIT:
-    {
-      int status = load_number(f->esp + ARG_STEP);
-      exit(status);
+    	{
+    	  int status = load_number(COMPUTE_ARG_1(f->esp));
+    	  exit(status);
 		  break;
-    }
+    	}
+
 	  /* Start another process. */
 	  case SYS_EXEC:
-    {
-      char* cmd_line = load_address(COMPUTE_ARG_1(f->esp));
-      exec(cmd_line);
+    	{
+    	  char* cmd_line = load_address(COMPUTE_ARG_1(f->esp));
+    	  exec(cmd_line);
 		  break;
-    }
+    	}
+
 	  /* Wait for a child process to die. */
 	  case SYS_WAIT:
-    {
-      pid_t pid = load_number(COMPUTE_ARG_1(f->esp));
-      wait(pid);
-      break;
-    }
+    	{
+    	  pid_t pid = load_number(COMPUTE_ARG_1(f->esp));
+    	  wait(pid);
+    	  break;
+    	}
+
 	  /* Create a file. */
 	  case SYS_CREATE:
 		{
@@ -114,7 +132,6 @@ syscall_handler (struct intr_frame *f)
 	  case SYS_FILESIZE:
     	{
     	  int fd = *(int*)(COMPUTE_ARG_1(f->esp));
-    	  // const int fd = load_address(COMPUTE_ARG_1(f->esp));
     	  f->eax = filesize (fd);
     	}
 		break;
@@ -126,24 +143,37 @@ syscall_handler (struct intr_frame *f)
 	  /* Write to a file. */
 	  case SYS_WRITE:
 		{
-		  int fd = load_number(COMPUTE_ARG_0(f->esp));
-		  void *buffer = load_address(COMPUTE_ARG_1(f->esp));
-		  unsigned size = load_number(COMPUTE_ARG_2(f->esp));
+		  int fd = load_number(COMPUTE_ARG_1(f->esp));
+		  void *buffer = load_address(COMPUTE_ARG_2(f->esp));
+		  unsigned size = load_number(COMPUTE_ARG_3(f->esp));
 		  f->eax = write(fd, buffer, size);
 		}
 		break;
 
 	  /* Change position in a file. */
 	  case SYS_SEEK:
-		break;
+		{
+		  int fd = load_number(COMPUTE_ARG_1(f->esp));
+		  unsigned position = load_number(COMPUTE_ARG_2(f->esp));
+		  seek(fd, position);
+		  break;
+		}
 
 	  /* Report current position in a file. */
 	  case SYS_TELL:
-		break;
+		{
+		  int fd = load_number(COMPUTE_ARG_1(f->esp));
+		  f->eax = tell(fd);
+		  break;
+		}
 
 	  /* Close a file. */
 	  case SYS_CLOSE:
-		break;
+		{
+		  int fd = load_number(COMPUTE_ARG_1(f->esp));
+		  close(fd);
+		  break;
+		}
 
 	  /* Handle default case. Unrecognized system call. */
 	  default:
@@ -255,7 +285,7 @@ static int write (int fd UNUSED, const void * buffer , unsigned size)
 {
   /* Check validity of buffer and exit immediately if false */
   if(!is_valid_buffer(buffer, size))
-	return 0;
+	exit(EXIT_FAIL);
 
   putbuf (buffer, size);
   return size;

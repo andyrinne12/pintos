@@ -19,6 +19,20 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+//#define DEBUG
+
+#ifdef DEBUG
+#define PRINT(format) (printf(format))
+#define PRINT_ONE_ARG(format, arg) (printf(format, arg))
+#define PRINT_TWO_ARG(format, arg1, arg2) (printf(format, arg1, arg2))
+#endif
+
+#ifndef DEBUG
+#define PRINT(format)
+#define PRINT_ONE_ARG(format, arg)
+#define PRINT_TWO_ARG(format, arg1, arg2)
+#endif
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static void push_arguments(struct intr_frame* if_, char* first_token,
@@ -74,16 +88,16 @@ process_execute (const char *command_line)
 
   struct thread *child_t = get_thread(tid);
 
-  printf("CHILD FOUND\n");
+  PRINT("CHILD FOUND\n");
 
   /* Check if child process is already terminated (successfully or not)
    and if not wait for it to finish loading */
   if(is_thread(child_t) && child_t->status != THREAD_DYING){
-    printf("WAITING FOR CHILD TO LOAD\n");
+    PRINT("WAITING FOR CHILD TO LOAD\n");
     sema_down(&child_t->process_w.loaded_sema);
   }
 
-  printf("LOADED\n");
+  PRINT("LOADED\n");
 
   /* By this time the child process should have communicated its loaded status
     to its parent */
@@ -137,7 +151,7 @@ start_process (void *command_line_)
 
   sema_up(&cur->process_w.loaded_sema);
 
-  printf("SEMA REACHED\n");
+  PRINT("SEMA REACHED\n");
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -158,7 +172,7 @@ start_process (void *command_line_)
 int
 process_wait (tid_t child_tid)
 {
-  printf("WAITING\n");
+  PRINT("WAITING\n");
   struct list_elem *e;
   struct list *children = &thread_current () ->process_w.children_processes;
   struct child_status *child_s;
@@ -189,7 +203,7 @@ process_wait (tid_t child_tid)
 
   /* If child was not in the list it is either not a valid child or
     wait has already been called on it */
-  printf("NO CHILD FOUND ffs\n");
+  PRINT("NO CHILD FOUND ffs\n");
   return -1;
 }
 
@@ -197,13 +211,13 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
-  printf("EXITING\n");
+  PRINT("EXITING\n");
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
   int exit_status = cur->process_w.exit_status;
 
-  printf("%s: exit(%d)\n", cur->name, exit_status);
+  PRINT_TWO_ARG("%s: exit(%d)\n", cur->name, exit_status);
 
   enum intr_level old_level = intr_disable();
 
@@ -359,7 +373,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file = filesys_open (file_name);
   if (file == NULL)
 	{
-	  printf ("load: %s: open failed\n", file_name);
+	  PRINT_ONE_ARG ("load: %s: open failed\n", file_name);
 	  goto done;
 	}
 
@@ -372,7 +386,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	  || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
 	  || ehdr.e_phnum > 1024)
 	{
-	  printf ("load: %s: error loading executable\n", file_name);
+	  PRINT_ONE_ARG ("load: %s: error loading executable\n", file_name);
 	  goto done;
 	}
 
@@ -579,7 +593,8 @@ setup_stack (void **esp)
 	{
 	  success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
 	  if (success)
-		*esp = PHYS_BASE - 12;
+	    *esp = PHYS_BASE;
+//		*esp = PHYS_BASE - 12;
 	  else
 		palloc_free_page (kpage);
 	}
@@ -644,7 +659,8 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
 
     token = strtok_r(NULL, " ", &arguments);
   }
-  argc--;
+  // You don't have to increment argc here ... it is always smaller in testing by 1
+//  argc--;
 
   if_->esp = last_address_alligned(if_->esp) - sizeof(char*) * (argc + 1);
 
@@ -670,7 +686,7 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
 
 
   /* Testing should work after system calls are implemented */
-  hex_dump(0, if_->esp, init_esp - if_->esp, 1);
+//  hex_dump(0, if_->esp, init_esp - if_->esp, 1);
 }
 
 /* Called by child process to update its status inside the children list of
