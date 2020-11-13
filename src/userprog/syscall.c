@@ -52,6 +52,7 @@ static int read(int fd, void *buffer, unsigned size);
 
 /* Helpers */
 static void * find_file(int fd);
+static void close_open_file (int fd);
 
 /* File system lock */
 static struct lock file_sys_lock;
@@ -360,6 +361,7 @@ static void close (int fd)
   if (descriptor != NULL && thread_current ()->tid == descriptor->owner)
   {
     // close the open file
+    close_open_file(fd);
   }
   lock_release (&file_sys_lock);
 }
@@ -475,6 +477,31 @@ static bool is_valid_address(const void *addr){
     exit(EXIT_FAIL);
   }
   return true;
+}
+
+// /* Helper function which iterates through the files opened in order to
+//  * close the searched file (with the num equal to fd) . */
+static void close_open_file (int fd)
+{
+  struct file_descriptor *descriptor;
+  struct list_elem *elem;
+  struct list_elem *prev;
+
+  struct list *files_opened= &thread_current()->files_opened;
+
+  elem = list_end (files_opened);
+  while (elem != list_head (files_opened))
+  {
+    prev = list_prev (elem);
+    descriptor = list_entry (elem, struct file_descriptor, elem);
+    if (fd == descriptor->num)
+    {
+      list_remove (elem);
+      file_close (descriptor->file_struct);
+      free (descriptor);
+    }
+    elem = prev;
+  }
 }
 
 /* Handles special case of buffer inspection. */
