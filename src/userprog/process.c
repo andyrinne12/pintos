@@ -135,6 +135,9 @@ start_process (void *command_line_)
 	{
 	  /* If load failed, quit. */
 	  palloc_free_page (file_name);
+
+    /* Print exiting message */
+    printf ("%s: exit(%d)\n", thread_current()->name, -1);
 	  thread_exit ();
 	}
 
@@ -229,6 +232,8 @@ process_exit (void)
   ASSERT(process_w);
   ASSERT(children);
 
+  /* Print exiting message */
+  printf("%s: exit(%i)\n", cur->name, exit_status);
   for(e = list_begin(children); e != list_end(children); e = list_next(e))
   {
     struct child_status *child;
@@ -236,6 +241,7 @@ process_exit (void)
     e = list_remove(e);
     free(child);
   }
+
 
   struct thread *parent = cur->process_w.parent_t;
 
