@@ -88,16 +88,11 @@ process_execute (const char *command_line)
 
   struct thread *child_t = get_thread(tid);
 
-  PRINT("CHILD FOUND\n");
-
   /* Check if child process is already terminated (successfully or not)
    and if not wait for it to finish loading */
   if(is_thread(child_t) && child_t->status != THREAD_DYING){
-    PRINT("WAITING FOR CHILD TO LOAD\n");
     sema_down(&child_t->process_w.loaded_sema);
   }
-
-  PRINT("LOADED\n");
 
   /* By this time the child process should have communicated its loaded status
     to its parent */
@@ -137,7 +132,7 @@ start_process (void *command_line_)
 	  palloc_free_page (file_name);
 
     /* Print exiting message */
-    printf ("%s: exit(%d)\n", thread_current()->name, -1);
+    thread_current ()->process_w.exit_status = EXIT_FAIL;
 	  thread_exit ();
 	}
 
@@ -153,8 +148,6 @@ start_process (void *command_line_)
     update_child_status(parent, cur->tid, LOADED_SUCCESS);
 
   sema_up(&cur->process_w.loaded_sema);
-
-  PRINT("SEMA REACHED\n");
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -175,7 +168,6 @@ start_process (void *command_line_)
 int
 process_wait (tid_t child_tid)
 {
-  PRINT("WAITING\n");
   struct list_elem *e;
   struct list *children = &thread_current () ->process_w.children_processes;
   struct child_status *child_s;
@@ -206,7 +198,6 @@ process_wait (tid_t child_tid)
 
   /* If child was not in the list it is either not a valid child or
     wait has already been called on it */
-  PRINT("NO CHILD FOUND ffs\n");
   return -1;
 }
 
@@ -214,13 +205,10 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
-  PRINT("EXITING\n");
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
   int exit_status = cur->process_w.exit_status;
-
-  PRINT_TWO_ARG("%s: exit(%d)\n", cur->name, exit_status);
 
   enum intr_level old_level = intr_disable();
 
@@ -694,7 +682,9 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
 
 
   /* Testing should work after system calls are implemented */
-//  hex_dump(0, if_->esp, init_esp - if_->esp, 1);
+#ifdef DEBUG
+  hex_dump(0, if_->esp, init_esp - if_->esp, 1);
+#endif
 }
 
 /* Called by child process to update its status inside the children list of

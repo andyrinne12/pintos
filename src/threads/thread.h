@@ -105,7 +105,7 @@ struct thread
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
-#ifdef USERPROG
+//#ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint32_t *pagedir;                  /* Page directory. */
 	struct process_wrapper
@@ -117,7 +117,7 @@ struct thread
 		int exit_status;
 //	  struct lock child_list_lock;        /* Children list lock */
 	} process_w;														/* Process wrapper of this thread */
-#endif
+//#endif
 
   	int nice;
   	int recent_cpu;

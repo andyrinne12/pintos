@@ -14,10 +14,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef USERPROG
+//#ifdef USERPROG
 #include "userprog/process.h"
 #include "userprog/syscall.h"
-#endif
+//#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
