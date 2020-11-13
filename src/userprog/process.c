@@ -380,6 +380,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (file == NULL)
 	{
 	  PRINT_ONE_ARG ("load: %s: open failed\n", file_name);
+    printf("load: %s: open failed\n", file_name);
 	  goto done;
 	}
 
@@ -393,6 +394,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	  || ehdr.e_phnum > 1024)
 	{
 	  PRINT_ONE_ARG ("load: %s: error loading executable\n", file_name);
+    printf ("load: %s: error loading executable\n", file_name);
 	  goto done;
 	}
 

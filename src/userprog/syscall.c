@@ -415,27 +415,43 @@ static char* load_address(void *vaddr)
   return *((char **) vaddr);
 }
 
+static bool is_valid_address(const void *addr){
+  if (addr == NULL || !is_user_vaddr(addr)){
+    exit(EXIT_FAIL);
+  }
+  return true;
+}
+
 /* Handles special case of buffer inspection. */
 static bool is_valid_buffer (const void *baddr, int size)
 {
   char *buffer = (char *) baddr;
+  if (baddr == NULL || !is_user_vaddr(baddr)){
+    exit(EXIT_FAIL);
+  }
   for (int i = 1; i < size; i++)
 	if (get_user ((uint8_t *) (buffer + i)) == -1)
 	  return false;
   return true;
 }
 
+
 /* Handles special case of string inspection. */
 static bool is_valid_string (const char *str)
 {
   int i = 0;
-  int chr = get_user ((uint8_t *) (str + i));;
+  int chr = get_user ((uint8_t *) (str + i));
+
+  if(chr == -1){
+    exit(EXIT_FAIL);
+  }
+
   while (chr != '\0') {
-	  i++;
 	  if (get_user ((uint8_t *) (str + i)) == -1)
 		return false;
 	  else
 		chr = get_user ((uint8_t *) (str + i));
-	}
+    i++;
+}
   return true;
 }
