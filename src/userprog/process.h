@@ -3,7 +3,7 @@
 
 #include <list.h>
 
-#define ARGS_MAX_SIZE 128 /* Maximum space allocated for arguments in stack */
+#define ARGS_MAX_SIZE 512 /* Maximum space allocated for arguments in stack */
 #define ARGS_MAX_COUNT 31 /* Maximum number of arguments passed to program */
 
 #define LOADED_SUCCESS 0
@@ -14,8 +14,8 @@ typedef int pid_t;
 struct child_status
 {
   pid_t pid;                            /* Child process pid */
-  struct list_elem child_elem;          /* Children list elem */
   int exit_status;                      /* Process exit status */
+  struct list_elem child_elem;          /* Children list elem */
 };
 
 /* Computes the next adress where a byte should start */

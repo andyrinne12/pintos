@@ -201,8 +201,7 @@ static void exit(int status)
 
 static pid_t exec (const char* cmd_line)
 {
-  pid_t pid = process_execute(cmd_line);
-  return pid;
+  return process_execute(cmd_line);
 }
 
 static int wait (pid_t pid)
@@ -259,12 +258,12 @@ static int open(const char *file){
   	return -1;
   }
 
-//  if (list_size(&thread_current()->files_opened) >= MAX_OPEN_FILES)
-//  {
-//    file_close (new_file);
-//    lock_release(&file_sys_lock);
-//	return -1;
-//  }
+  if (list_size(&thread_current()->files_opened) >= MAX_OPEN_FILES)
+  {
+    file_close (new_file);
+    lock_release(&file_sys_lock);
+	return -1;
+  }
 
   fd = calloc(1, sizeof(*fd));
   fd->num = ++thread_current()->fd_count;
@@ -415,6 +414,31 @@ static void * find_file(int fd)
   return NULL;
 }
 
+/* Helper function which iterates through the files opened in order to
+ * close the searched file (with the num equal to fd) . */
+static void close_open_file (int fd)
+{
+  struct file_descriptor *descriptor;
+  struct list_elem *elem;
+  struct list_elem *prev;
+
+  struct list *files_opened= &thread_current()->files_opened;
+
+  elem = list_end (files_opened);
+  while (elem != list_head (files_opened))
+	{
+	  prev = list_prev (elem);
+	  descriptor = list_entry (elem, struct file_descriptor, elem);
+	  if (descriptor != NULL && fd == descriptor->num)
+		{
+		  list_remove (elem);
+		  file_close (descriptor->file_struct);
+		  free (descriptor);
+		}
+	  elem = prev;
+	}
+}
+
 /* Reads a byte at user virtual address UADDR.
 UADDR must be below PHYS_BASE.
 Returns the byte value if successful, -1 if a segfault
@@ -477,31 +501,6 @@ static bool is_valid_address(const void *addr){
     exit(EXIT_FAIL);
   }
   return true;
-}
-
-// /* Helper function which iterates through the files opened in order to
-//  * close the searched file (with the num equal to fd) . */
-static void close_open_file (int fd)
-{
-  struct file_descriptor *descriptor;
-  struct list_elem *elem;
-  struct list_elem *prev;
-
-  struct list *files_opened= &thread_current()->files_opened;
-
-  elem = list_end (files_opened);
-  while (elem != list_head (files_opened))
-  {
-    prev = list_prev (elem);
-    descriptor = list_entry (elem, struct file_descriptor, elem);
-    if (fd == descriptor->num)
-    {
-      list_remove (elem);
-      file_close (descriptor->file_struct);
-      free (descriptor);
-    }
-    elem = prev;
-  }
 }
 
 /* Handles special case of buffer inspection. */

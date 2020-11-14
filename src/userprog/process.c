@@ -48,6 +48,7 @@ tid_t
 process_execute (const char *command_line)
 {
   char *cmd_line_copy;
+  char *cmd_line_local_copy;
 
   /* FILE_NAME keeps track of the file name (first token in command line) */
   char *file_name;
@@ -63,8 +64,13 @@ process_execute (const char *command_line)
 	return TID_ERROR;
   strlcpy (cmd_line_copy, command_line, PGSIZE);
 
+  cmd_line_local_copy = palloc_get_page (0);
+  if (cmd_line_local_copy == NULL)
+	return TID_ERROR;
+  strlcpy (cmd_line_local_copy, command_line, PGSIZE);
+
   /* Tokenize the command line and recognize the first as the FILE_NAME */
-  file_name = strtok_r((char *) command_line, " ", &arguments);
+  file_name = strtok_r((char *) cmd_line_local_copy, " ", &arguments);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, cmd_line_copy);
@@ -116,6 +122,14 @@ start_process (void *command_line_)
   /* ARGUMENTS keeps track of the program arguments (remaining tokens) */
   char *arguments;
 
+  char *cmd_line_copy = palloc_get_page (0);
+  if (cmd_line_copy == NULL)
+  {
+	  thread_current ()->process_w.exit_status = EXIT_FAIL;
+	  thread_exit ();
+  }
+  strlcpy (cmd_line_copy, command_line, PGSIZE);
+
   /* Tokenize the command line and recognize the first as the FILE_NAME */
   file_name = strtok_r((char *) command_line, " ", &arguments);
 
@@ -126,28 +140,35 @@ start_process (void *command_line_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  struct thread *cur = thread_current();
+  struct thread *parent = cur->process_w.parent_t;
+
   if (!success)
 	{
 	  /* If load failed, quit. */
 	  palloc_free_page (file_name);
 
-    /* Print exiting message */
-    thread_current ()->process_w.exit_status = EXIT_FAIL;
+	  if(is_thread(parent) && parent->status != THREAD_DYING)
+		update_child_status(parent, cur->tid, LOADED_FAILED);
+
+	  sema_up(&cur->process_w.loaded_sema);
+
+      /* Print exiting message */
+      thread_current ()->process_w.exit_status = EXIT_FAIL;
 	  thread_exit ();
 	}
+  else
+	{
+	  /* Push arguments on the stack */
+	  push_arguments(&if_, cmd_line_copy, arguments);
 
-  /* Push arguments on the stack */
-  push_arguments(&if_, file_name, arguments);
+	  /* Let parent process know that it loaded successfully and up semaphore */
 
-  /* Let parent process know that it loaded successfully and up semaphore */
+	  if(is_thread(parent) && parent->status != THREAD_DYING)
+		update_child_status(parent, cur->tid, LOADED_SUCCESS);
 
-  struct thread *cur = thread_current();
-  struct thread *parent = cur->process_w.parent_t;
-
-  if(is_thread(parent) && parent->status != THREAD_DYING)
-    update_child_status(parent, cur->tid, LOADED_SUCCESS);
-
-  sema_up(&cur->process_w.loaded_sema);
+	  sema_up(&cur->process_w.loaded_sema);
+	}
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -175,7 +196,7 @@ process_wait (tid_t child_tid)
   /* There are no races on the children list because it is only modified
     in an interrupts disabled context */
 
-  for(e = list_begin(children); e != list_end(children);)
+  for(e = list_begin(children); e != list_end(children); e = list_next(e))
   {
     child_s = list_entry(e, struct child_status, child_elem);
     if(child_s -> pid == child_tid)
@@ -189,10 +210,6 @@ process_wait (tid_t child_tid)
 
       list_remove(&child_s->child_elem);
       return child_s->exit_status;
-    }
-    else
-    {
-      e = list_next(e);
     }
   }
 
@@ -208,9 +225,9 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  int exit_status = cur->process_w.exit_status;
-
   enum intr_level old_level = intr_disable();
+
+  int exit_status = cur->process_w.exit_status;
 
   /* Free children processes list when terminating */
   struct process_wrapper *process_w = &cur->process_w;
@@ -222,7 +239,7 @@ process_exit (void)
 
   /* Print exiting message */
   printf("%s: exit(%i)\n", cur->name, exit_status);
-  for(e = list_begin(children); e != list_end(children); e = list_next(e))
+  for(e = list_begin(children); e != list_end(children);)
   {
     struct child_status *child;
     child = list_entry(e, struct child_status, child_elem);
@@ -368,7 +385,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (file == NULL)
 	{
 	  PRINT_ONE_ARG ("load: %s: open failed\n", file_name);
-    printf("load: %s: open failed\n", file_name);
+      printf("load: %s: open failed\n", file_name);
 	  goto done;
 	}
 
@@ -382,7 +399,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	  || ehdr.e_phnum > 1024)
 	{
 	  PRINT_ONE_ARG ("load: %s: error loading executable\n", file_name);
-    printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", file_name);
 	  goto done;
 	}
 
@@ -619,10 +636,9 @@ install_page (void *upage, void *kpage, bool writable)
 
 /* Pushes the arguments of the newly created user program on the stack
   using IF_.ESP as the stack pointer, ending in 0 as the return address.
-  The arguments string is passed in ARGUMENTS and parsed using strtok_r().
-  FIRST_TOKEN stores the program name. */
+  The arguments string is passed in ARGUMENTS and parsed using strtok_r(). */
 static void
-push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
+push_arguments(struct intr_frame* if_, char* command_line, char* arguments){
   /* FILE_NAME is the first token and it should also be put on the stack */
 
   int argc = 0; /* number of arguments */
@@ -635,7 +651,7 @@ push_arguments(struct intr_frame* if_, char* first_token, char* arguments){
   /* Memory used so far by arguments each ending in '\0' */
   int used_memory = 0;
 
-  char* token = first_token;
+  char* token = strtok_r(command_line, " ", &arguments);;
   while (token != NULL)
   {
     int token_memory = sizeof(char) * strlen(token) + 1;
@@ -704,8 +720,10 @@ update_child_status(struct thread *parent, pid_t child_pid,
   for(e = list_begin(children); e != list_end(children); e = list_next(e))
   {
     child = list_entry(e, struct child_status, child_elem);
-    if(child->pid == child_pid){
+    if(child->pid == child_pid && child->exit_status != status)
+    {
       child->exit_status = status;
+      ASSERT(child->exit_status == status);
       break;
     }
   }
