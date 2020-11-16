@@ -108,10 +108,13 @@ static void start_process (void *command_line_)
 	/* ARGUMENTS keeps track of the program arguments (remaining tokens) */
 	char *arguments;
 
+  	struct thread *cur = thread_current ();
+  	struct thread *parent = cur->process_w.parent_t;
+
 	char *cmd_line_copy = palloc_get_page (0);
 	if (cmd_line_copy == NULL)
 	{
-		thread_current ()->process_w.exit_status = EXIT_FAIL;
+		cur->process_w.exit_status = EXIT_FAIL;
 		thread_exit ();
 	}
 	strlcpy (cmd_line_copy, command_line, PGSIZE);
@@ -126,9 +129,6 @@ static void start_process (void *command_line_)
 	if_.eflags = FLAG_IF | FLAG_MBS;
 	success = load (file_name, &if_.eip, &if_.esp);
 
-	struct thread *cur = thread_current ();
-	struct thread *parent = cur->process_w.parent_t;
-
 	if (!success)
 	{
 		/* If load failed, quit. */
@@ -140,11 +140,16 @@ static void start_process (void *command_line_)
 		sema_up (&cur->process_w.loaded_sema);
 
 		/* Print exiting message */
-		thread_current ()->process_w.exit_status = EXIT_FAIL;
+		cur->process_w.exit_status = EXIT_FAIL;
 		thread_exit ();
 	}
 	else
 	{
+	    /* Deny writes to executable while the process is still running */
+	    cur->executable = filesys_open (file_name);
+	    if (cur->executable)
+			file_deny_write(cur->executable);
+
 		/* Push arguments on the stack */
 		push_arguments (&if_, cmd_line_copy, arguments);
 
@@ -220,6 +225,10 @@ void process_exit (void)
 
 	ASSERT (process_w);
 	ASSERT (children);
+
+  	/* Allow write back to executable once exited */
+  	if (cur->executable)
+  		file_allow_write(cur->executable);
 
 	/* Print exiting message */
 	printf ("%s: exit(%i)\n", cur->name, exit_status);

@@ -91,26 +91,27 @@ struct thread
 	uint8_t *stack;                     /* Saved stack pointer. */
 	int priority;                       /* Priority. */
 	struct list_elem allelem;           /* List element for all threads list. */
-	uint64_t last_tick;									/* The last tick the thread ran */
+	uint64_t last_tick;					/* The last tick the thread ran */
 
 
-	struct list donations;							/* list of threads that have donated priorities to this thread */
+	struct list donations;				/* list of threads that have donated
+ 												* priorities to this thread */
 	struct list_elem donation_elem;     /* element of list donations */
-	struct lock *thread_waits_lock;			/* threads waits for a lock*/
+	struct lock *thread_waits_lock;		/* threads waits for a lock*/
 
 	int64_t wake_up_time;               /* Sleeping wake up time */
-	struct semaphore timer_sema;	  		/* Semaphore that blocks the thread when sleeping */
-	struct list_elem sleep_elem;    		/* List element for sleeping list */
+	struct semaphore timer_sema;	  	/* Semaphore that blocks the thread when sleeping */
+	struct list_elem sleep_elem;    	/* List element for sleeping list */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
 //#ifdef USERPROG
-	/* List of open files */
-  	struct list files_opened;
 
-  	/* Total count of open files */
-  	int fd_count;
+  	struct list files_opened;			/* List of open files */
+  	struct file *executable;			/* Executable file of the thread */
+
+  	int fd_count;						/* Total count of open files */
 
 	/* Owned by userprog/process.c. */
 	uint32_t *pagedir;                  /* Page directory. */
@@ -121,8 +122,8 @@ struct thread
 	  struct semaphore finished_sema;       /* Process finished semaphore */
 	  struct list children_processes;       /* Children processes */
 		int exit_status;
-//	  struct lock child_list_lock;        /* Children list lock */
-	} process_w;														/* Process wrapper of this thread */
+//	  struct lock child_list_lock;          /* Children list lock */
+	} process_w;						    /* Process wrapper of this thread */
 //#endif
 
   	int nice;

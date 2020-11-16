@@ -301,12 +301,13 @@ static int write (int fd, const void *buffer, unsigned size)
 	}
 
 	/* Find the corresponding file and write */
+    lock_acquire (&file_sys_lock);
+
 	struct file_descriptor *descriptor = find_file (fd);
 
-	if (descriptor == NULL)
+	if (!descriptor)
 		exit (EXIT_FAIL);
 
-	lock_acquire (&file_sys_lock);
 	int bytes_written = file_write (descriptor->file_struct, buffer, size);
 	lock_release (&file_sys_lock);
 
@@ -360,32 +361,27 @@ static void close (int fd)
 
 static int read (int fd, void *buffer, unsigned size)
 {
-
 	/* Check validity of buffer and exit immediately if false */
 	if (!is_valid_buffer (buffer, size))
 		exit (EXIT_FAIL);
 
-	if (fd == 0)
-	{ /* The characters that we are reading have to fill the buffer*/
+	if (fd == STDIN_FILENO)
+	{
+	  /* The characters that we are reading have to fill the buffer*/
 		uint8_t *copy_buffer = (uint8_t *) buffer;
 		for (unsigned i = 0; i < size; i++)
-		{
 			copy_buffer[i] = input_getc ();
-		}
 		return size;
 	}
+
 	/* Extract the file */
 	lock_acquire (&file_sys_lock);
-
 	struct file_descriptor *descriptor = find_file (fd);
 
 	if (!descriptor)
-	{
 		exit (EXIT_FAIL);
-	}
 
 	int no_of_read_characters = file_read (descriptor->file_struct, buffer, size);
-
 	lock_release (&file_sys_lock);
 
 	return no_of_read_characters;
