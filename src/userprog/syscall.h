@@ -2,6 +2,7 @@
 #define USERPROG_SYSCALL_H
 
 #include "../threads/thread.h"
+#include "../threads/interrupt.h"
 #include <list.h>
 
 #define EXIT_FAIL -1
@@ -10,11 +11,14 @@
 #define ARG_STEP 4
 
 #define MAX_OPEN_FILES 126
+#define MAX_SYSCALL_SIZE 128
 
 #define COMPUTE_ARG_0(x) (x)
 #define COMPUTE_ARG_1(x) ((x) + ARG_STEP)
 #define COMPUTE_ARG_2(x) ((x) + (2 * ARG_STEP))
 #define COMPUTE_ARG_3(x) ((x) + (3 * ARG_STEP))
+
+typedef void (* syscall_func_t)(struct intr_frame *f);
 
 /* structure for the file descriptors */
 struct file_descriptor
