@@ -32,26 +32,25 @@ static void update_child_status (struct thread *parent, pid_t child_pid,
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t process_execute (const char *command_line)
 {
-	char *cmd_line_copy;
-	char *cmd_line_local_copy;
+  	/* FILE_NAME keeps track of the file name (first token in command line) */
+  	char *file_name;
+  	/* ARGUMENTS keeps track of the program arguments (remaining tokens) */
+  	char *arguments;
 
-	/* FILE_NAME keeps track of the file name (first token in command line) */
-	char *file_name;
-	/* ARGUMENTS keeps track of the program arguments (remaining tokens) */
-	char *arguments;
+  	tid_t tid;
 
-	tid_t tid;
+ 	 /* Make two copies of COMMAND_LINE. One is used for getting the FILE_NAME.
+   		The other one is passed to start process and will be modified there. If
+   		we chose to pass the original COMMAND_LINE we would violate the const
+   		declaration above. */
+  	int cmd_line_size = strlen(command_line) + 1;
+	char *cmd_line_copy = malloc(cmd_line_size);
+	char *cmd_line_local_copy = malloc(cmd_line_size);
 
-	/* Make a copy of COMMAND_LINE.
-	   Otherwise there's a race between the caller and load(). */
-	cmd_line_copy = palloc_get_page (0);
-	if (cmd_line_copy == NULL)
+	if (cmd_line_copy == NULL || cmd_line_local_copy == NULL)
 		return TID_ERROR;
+
 	strlcpy (cmd_line_copy, command_line, PGSIZE);
-
-	cmd_line_local_copy = palloc_get_page (0);
-	if (cmd_line_local_copy == NULL)
-		return TID_ERROR;
 	strlcpy (cmd_line_local_copy, command_line, PGSIZE);
 
 	/* Tokenize the command line and recognize the first as the FILE_NAME */
@@ -61,21 +60,18 @@ tid_t process_execute (const char *command_line)
 	tid = thread_create (file_name, PRI_DEFAULT, start_process, cmd_line_copy);
 	if (tid == TID_ERROR)
 	{
-		palloc_free_page (cmd_line_copy);
+	  	free(cmd_line_copy);
+	  	free(cmd_line_local_copy);
 		return -1;
 	}
 
-	struct thread *cur = thread_current ();
 	struct child_status *child = malloc (sizeof (struct child_status));
 
 	if (child == NULL)
-	{
 		/* Handle early termination */
-
 		return EXIT_FAIL;
-	}
 
-	list_push_back (&cur->process_w.children_processes, &child->child_elem);
+	list_push_back (&thread_current()->process_w.children_processes, &child->child_elem);
 	child->pid = tid;
 
 	struct thread *child_t = get_thread (tid);
@@ -83,9 +79,7 @@ tid_t process_execute (const char *command_line)
 	/* Check if child process is already terminated (successfully or not)
 	 and if not wait for it to finish loading */
 	if (is_thread (child_t) && child_t->status != THREAD_DYING)
-	{
 		sema_down (&child_t->process_w.loaded_sema);
-	}
 
 	/* By this time the child process should have communicated its loaded status
 	  to its parent */
@@ -111,7 +105,8 @@ static void start_process (void *command_line_)
   	struct thread *cur = thread_current ();
   	struct thread *parent = cur->process_w.parent_t;
 
-	char *cmd_line_copy = palloc_get_page (0);
+  	int cmd_line_size = strlen(command_line) + 1;
+  	char *cmd_line_copy = malloc(cmd_line_size);
 	if (cmd_line_copy == NULL)
 	{
 		cur->process_w.exit_status = EXIT_FAIL;
@@ -132,7 +127,8 @@ static void start_process (void *command_line_)
 	if (!success)
 	{
 		/* If load failed, quit. */
-		palloc_free_page (file_name);
+		free(file_name);
+		free(cmd_line_copy);
 
 		if (is_thread (parent) && parent->status != THREAD_DYING)
 			update_child_status (parent, cur->tid, LOADED_FAILED);
@@ -146,15 +142,16 @@ static void start_process (void *command_line_)
 	else
 	{
 	    /* Deny writes to executable while the process is still running */
+		lock_acquire (&file_sys_lock);
 	    cur->executable = filesys_open (file_name);
 	    if (cur->executable)
 			file_deny_write(cur->executable);
+		lock_release (&file_sys_lock);
 
 		/* Push arguments on the stack */
 		push_arguments (&if_, cmd_line_copy, arguments);
 
 		/* Let parent process know that it loaded successfully and up semaphore */
-
 		if (is_thread (parent) && parent->status != THREAD_DYING)
 			update_child_status (parent, cur->tid, LOADED_SUCCESS);
 
@@ -227,8 +224,14 @@ void process_exit (void)
 	ASSERT (children);
 
   	/* Allow write back to executable once exited */
+	if (!lock_held_by_current_thread (&file_sys_lock))
+  		lock_acquire (&file_sys_lock);
   	if (cur->executable)
-  		file_allow_write(cur->executable);
+	  {
+		file_allow_write (cur->executable);
+		file_close (cur->executable);
+	  }
+  	lock_release (&file_sys_lock);
 
 	/* Print exiting message */
 	printf ("%s: exit(%i)\n", cur->name, exit_status);
@@ -592,7 +595,6 @@ static bool setup_stack (void **esp)
 		success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
 		if (success)
 			*esp = PHYS_BASE;
-		//		*esp = PHYS_BASE - 12;
 		else
 			palloc_free_page (kpage);
 	}

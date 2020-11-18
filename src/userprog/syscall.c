@@ -59,9 +59,6 @@ static void *find_file (int fd);
 static void close_open_file (int fd);
 static void close_all_files(void);
 
-/* File system lock */
-static struct lock file_sys_lock;
-
 /* System calls array */
 static syscall_func_t syscall_func[MAX_SYSCALL_SIZE];
 

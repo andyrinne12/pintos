@@ -20,6 +20,9 @@
 
 typedef void (* syscall_func_t)(struct intr_frame *f);
 
+/* File system lock */
+struct lock file_sys_lock;
+
 /* structure for the file descriptors */
 struct file_descriptor
 {
