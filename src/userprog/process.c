@@ -70,9 +70,9 @@ tid_t process_execute (const char *command_line)
 
 	if (child == NULL)
 	{
-		// TODO: Handle early termination
-		// exit(EXIT_FAIL); maybe ??
-		return -1;
+		/* Handle early termination */
+
+		return EXIT_FAIL;
 	}
 
 	list_push_back (&cur->process_w.children_processes, &child->child_elem);
@@ -628,8 +628,6 @@ static void push_arguments (struct intr_frame *if_, char *command_line,
 
 	int argc = 0; /* number of arguments */
 
-	void *init_esp = if_->esp;
-
 	/* Initially addresses of arguments in the stack */
 	char *arg_address[ARGS_MAX_COUNT];
 
@@ -637,7 +635,7 @@ static void push_arguments (struct intr_frame *if_, char *command_line,
 	int used_memory = 0;
 
 	char *token = strtok_r (command_line, " ", &arguments);
-	;
+
 	while (token != NULL)
 	{
 		int token_memory = sizeof (char) * strlen (token) + 1;
@@ -657,9 +655,6 @@ static void push_arguments (struct intr_frame *if_, char *command_line,
 
 		token = strtok_r (NULL, " ", &arguments);
 	}
-	// You don't have to increment argc here ... it is always smaller in testing
-	// by 1
-	//  argc--;
 
 	if_->esp = last_address_alligned (if_->esp) - sizeof (char *) * (argc + 1);
 

@@ -57,6 +57,7 @@ static void exit_fail(void);
 /* Helpers */
 static void *find_file (int fd);
 static void close_open_file (int fd);
+static void close_all_files(void);
 
 /* File system lock */
 static struct lock file_sys_lock;
@@ -119,14 +120,16 @@ static void halt(struct intr_frame *f UNUSED)
 static void exit(struct intr_frame *f)
 {
   	int status = load_number (COMPUTE_ARG_1 (f->esp));
-  	thread_current ()->process_w.exit_status = status;
+  	close_all_files();
+  	thread_current()->process_w.exit_status = status;
   	thread_exit ();
 }
 
 /* Function to be called for immediate exit fail */
 static void exit_fail(void)
 {
-  	thread_current ()->process_w.exit_status = EXIT_FAIL;
+  	close_all_files();
+  	thread_current()->process_w.exit_status = EXIT_FAIL;
   	thread_exit ();
 }
 
@@ -273,7 +276,11 @@ static void read(struct intr_frame *f)
   	struct file_descriptor *descriptor = find_file (fd);
 
   	if (!descriptor)
-		exit_fail();
+	  {
+		lock_release (&file_sys_lock);
+		exit_fail ();
+		return;
+	  }
 
   	int no_of_read_characters = file_read (descriptor->file_struct, buffer, size);
   	lock_release (&file_sys_lock);
@@ -307,7 +314,11 @@ static void write(struct intr_frame *f)
 	struct file_descriptor *descriptor = find_file (fd);
 
 	if (!descriptor)
-		exit_fail();
+	  {
+		lock_release (&file_sys_lock);
+		exit_fail ();
+		return;
+	  }
 
 	int bytes_written = file_write (descriptor->file_struct, buffer, size);
 	lock_release (&file_sys_lock);
@@ -382,29 +393,33 @@ static void *find_file (int fd)
 	return NULL;
 }
 
-/* Helper function which iterates through the files opened in order to
- * close the searched file (with the num equal to fd) . */
+/* Helper function which closes the requested file and frees resources. */
 static void close_open_file (int fd)
 {
-	struct file_descriptor *descriptor;
-	struct list_elem *elem;
-	struct list_elem *prev;
+	struct file_descriptor *descriptor = find_file(fd);
 
-	struct list *files_opened = &thread_current ()->files_opened;
+	list_remove(&descriptor->elem);
+  	file_close (descriptor->file_struct);
+	free (descriptor);
+}
 
-	elem = list_end (files_opened);
-	while (elem != list_head (files_opened))
-	{
-		prev = list_prev (elem);
-		descriptor = list_entry (elem, struct file_descriptor, elem);
-		if (descriptor != NULL && fd == descriptor->num)
-		{
-			list_remove (elem);
-			file_close (descriptor->file_struct);
-			free (descriptor);
-		}
-		elem = prev;
-	}
+/* When exiting, make sure all files belonging to this thread are closed */
+static void close_all_files(void)
+{
+  	struct thread *curr = thread_current ();
+
+  	struct list_elem *e;
+  	lock_acquire (&file_sys_lock);
+  	while (!list_empty (&curr->files_opened))
+  	  {
+	  	e = list_begin (&curr->files_opened);
+	  	int fd = list_entry (e,
+	  	struct file_descriptor, elem)->num;
+	  	struct file_descriptor *descriptor = find_file (fd);
+	  	if (descriptor != NULL && curr->tid == descriptor->owner)
+			close_open_file (fd);
+	  }
+  	lock_release (&file_sys_lock);
 }
 
 /* Reads a byte at user virtual address UADDR.
