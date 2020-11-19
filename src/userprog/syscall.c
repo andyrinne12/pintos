@@ -51,9 +51,6 @@ static void seek(struct intr_frame *f);
 static void tell(struct intr_frame *f);
 static void close(struct intr_frame *f);
 
-/* Immediate exit failure */
-static void exit_fail(void);
-
 /* Helpers */
 static void *find_file (int fd);
 static void close_open_file (int fd);
@@ -123,7 +120,7 @@ static void exit(struct intr_frame *f)
 }
 
 /* Function to be called for immediate exit fail */
-static void exit_fail(void)
+void exit_fail(void)
 {
   	close_all_files();
   	thread_current()->process_w.exit_status = EXIT_FAIL;
@@ -149,8 +146,8 @@ static void wait(struct intr_frame *f)
  * Creating a new file does not open it! */
 static void create(struct intr_frame *f)
 {
-  	const char *file = load_address (COMPUTE_ARG_1 (f->esp));
-  	unsigned initial_size = *(unsigned *) (COMPUTE_ARG_2 (f->esp));
+  const char *file = load_address (COMPUTE_ARG_1 (f->esp));
+  unsigned initial_size = *(unsigned *) (COMPUTE_ARG_2 (f->esp));
 	bool result;
 
 	/* Check validity of file string and exit immediately if false */
@@ -406,8 +403,10 @@ static void close_all_files(void)
   	struct thread *curr = thread_current ();
 
   	struct list_elem *e;
-  	lock_acquire (&file_sys_lock);
-  	while (!list_empty (&curr->files_opened))
+		if(!lock_held_by_current_thread(&file_sys_lock))
+  		lock_acquire (&file_sys_lock);
+
+		while (!list_empty (&curr->files_opened))
   	  {
 	  	e = list_begin (&curr->files_opened);
 	  	int fd = list_entry (e,

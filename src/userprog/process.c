@@ -19,67 +19,86 @@
 #include <stdio.h>
 #include <string.h>
 
+//#define DEBUG
+
+#ifdef DEBUG
+#define PRINT(format) (printf (format))
+#define PRINT_ONE_ARG(format, arg) (printf (format, arg))
+#define PRINT_TWO_ARG(format, arg1, arg2) (printf (format, arg1, arg2))
+#endif
+
+#ifndef DEBUG
+#define PRINT(format)
+#define PRINT_ONE_ARG(format, arg)
+#define PRINT_TWO_ARG(format, arg1, arg2)
+#endif
+
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
-static void push_arguments (struct intr_frame *if_, char *first_token,
-                            char *arguments);
+static bool load (const char *file_name, char *args, void (**eip) (void),
+                  void **esp);
+static int push_arguments (void **esp, const char *file_name, char *args);
 static void update_child_status (struct thread *parent, pid_t child_pid,
                                  int status);
+
+struct command_line
+{
+	char *name;
+	char *args;
+};
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-tid_t process_execute (const char *command_line)
+tid_t process_execute (const char *file_name)
 {
-  	/* FILE_NAME keeps track of the file name (first token in command line) */
-  	char *file_name;
-  	/* ARGUMENTS keeps track of the program arguments (remaining tokens) */
-  	char *arguments;
+	char *fn_copy;
+	tid_t tid;
 
-  	tid_t tid;
-
- 	 /* Make two copies of COMMAND_LINE. One is used for getting the FILE_NAME.
-   		The other one is passed to start process and will be modified there. If
-   		we chose to pass the original COMMAND_LINE we would violate the const
-   		declaration above. */
-  	int cmd_line_size = strlen(command_line) + 1;
-	char *cmd_line_copy = malloc(cmd_line_size);
-	char *cmd_line_local_copy = malloc(cmd_line_size);
-
-	if (cmd_line_copy == NULL || cmd_line_local_copy == NULL)
+	/* Make a copy of FILE_NAME.
+	   Otherwise there's a race between the caller and load(). */
+	fn_copy = palloc_get_page (0);
+	if (fn_copy == NULL)
 		return TID_ERROR;
+	strlcpy (fn_copy, file_name, PGSIZE);
 
-	strlcpy (cmd_line_copy, command_line, PGSIZE);
-	strlcpy (cmd_line_local_copy, command_line, PGSIZE);
+	struct command_line cmd_line;
 
-	/* Tokenize the command line and recognize the first as the FILE_NAME */
-	file_name = strtok_r ((char *) cmd_line_local_copy, " ", &arguments);
+	cmd_line.name = strtok_r (fn_copy, " ", &cmd_line.args);
+
+  /* Deny writes to executable while the process is still running */
+  lock_acquire (&file_sys_lock);
+  thread_current()->executable = filesys_open (cmd_line.name);
+  if (thread_current()->executable)
+    file_deny_write (thread_current()->executable);
+  lock_release (&file_sys_lock);
 
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, start_process, cmd_line_copy);
+	tid = thread_create (cmd_line.name, PRI_DEFAULT, start_process, &cmd_line);
+
 	if (tid == TID_ERROR)
-	{
-	  	free(cmd_line_copy);
-	  	free(cmd_line_local_copy);
-		return -1;
-	}
+		palloc_free_page (fn_copy);
 
 	struct child_status *child = malloc (sizeof (struct child_status));
 
 	if (child == NULL)
-		/* Handle early termination */
 		return EXIT_FAIL;
 
-	list_push_back (&thread_current()->process_w.children_processes, &child->child_elem);
 	child->pid = tid;
+	list_push_back (&thread_current ()->process_w.children_processes,
+	                &child->child_elem);
 
 	struct thread *child_t = get_thread (tid);
 
 	/* Check if child process is already terminated (successfully or not)
 	 and if not wait for it to finish loading */
+
+	enum intr_level old_level = intr_disable ();
 	if (is_thread (child_t) && child_t->status != THREAD_DYING)
+	{
 		sema_down (&child_t->process_w.loaded_sema);
+	}
+	intr_set_level (old_level);
 
 	/* By this time the child process should have communicated its loaded status
 	  to its parent */
@@ -91,72 +110,47 @@ tid_t process_execute (const char *command_line)
 
 /* A thread function that loads a user process and starts it
    running. */
-static void start_process (void *command_line_)
+static void start_process (void *cmd_line_)
 {
-	char *command_line = command_line_;
+	struct command_line *cmd_line = (struct command_line *) cmd_line_;
 	struct intr_frame if_;
 	bool success;
 
-	/* FILE_NAME keeps track of the file name (first token in command line) */
-	char *file_name;
-	/* ARGUMENTS keeps track of the program arguments (remaining tokens) */
-	char *arguments;
-
-  	struct thread *cur = thread_current ();
-  	struct thread *parent = cur->process_w.parent_t;
-
-  	int cmd_line_size = strlen(command_line) + 1;
-  	char *cmd_line_copy = malloc(cmd_line_size);
-	if (cmd_line_copy == NULL)
-	{
-		cur->process_w.exit_status = EXIT_FAIL;
-		thread_exit ();
-	}
-	strlcpy (cmd_line_copy, command_line, PGSIZE);
-
-	/* Tokenize the command line and recognize the first as the FILE_NAME */
-	file_name = strtok_r ((char *) command_line, " ", &arguments);
+	struct thread *cur = thread_current ();
+	struct thread *parent = cur->process_w.parent_t;
 
 	/* Initialize interrupt frame and load executable. */
 	memset (&if_, 0, sizeof if_);
 	if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
 	if_.cs = SEL_UCSEG;
 	if_.eflags = FLAG_IF | FLAG_MBS;
-	success = load (file_name, &if_.eip, &if_.esp);
+	success = load (cmd_line->name, cmd_line->args, &if_.eip, &if_.esp);
+
+	/* If load failed, quit. */
+	palloc_free_page (cmd_line->name);
 
 	if (!success)
 	{
-		/* If load failed, quit. */
-		free(file_name);
-		free(cmd_line_copy);
+		enum intr_level old_level = intr_disable ();
 
 		if (is_thread (parent) && parent->status != THREAD_DYING)
 			update_child_status (parent, cur->tid, LOADED_FAILED);
 
-		sema_up (&cur->process_w.loaded_sema);
-
-		/* Print exiting message */
-		cur->process_w.exit_status = EXIT_FAIL;
-		thread_exit ();
-	}
-	else
-	{
-	    /* Deny writes to executable while the process is still running */
-		lock_acquire (&file_sys_lock);
-	    cur->executable = filesys_open (file_name);
-	    if (cur->executable)
-			file_deny_write(cur->executable);
-		lock_release (&file_sys_lock);
-
-		/* Push arguments on the stack */
-		push_arguments (&if_, cmd_line_copy, arguments);
-
-		/* Let parent process know that it loaded successfully and up semaphore */
-		if (is_thread (parent) && parent->status != THREAD_DYING)
-			update_child_status (parent, cur->tid, LOADED_SUCCESS);
+		intr_set_level (old_level);
 
 		sema_up (&cur->process_w.loaded_sema);
+
+		exit_fail ();
 	}
+
+	enum intr_level old_level = intr_disable ();
+
+	if (is_thread (parent) && parent->status != THREAD_DYING)
+		update_child_status (parent, cur->tid, LOADED_SUCCESS);
+
+	intr_set_level (old_level);
+
+	sema_up (&cur->process_w.loaded_sema);
 
 	/* Start the user process by simulating a return from an
 	   interrupt, implemented by intr_exit (in
@@ -196,7 +190,10 @@ int process_wait (tid_t child_tid)
 				sema_down (&child_t->process_w.finished_sema);
 
 			list_remove (&child_s->child_elem);
-			return child_s->exit_status;
+			int status = child_s->exit_status;
+			free (child_s);
+
+			return status;
 		}
 	}
 
@@ -209,6 +206,7 @@ int process_wait (tid_t child_tid)
 void process_exit (void)
 {
 	struct thread *cur = thread_current ();
+  struct thread *parent = cur->process_w.parent_t;
 	uint32_t *pd;
 
 	enum intr_level old_level = intr_disable ();
@@ -223,15 +221,15 @@ void process_exit (void)
 	ASSERT (process_w);
 	ASSERT (children);
 
-  	/* Allow write back to executable once exited */
+	/* Allow write back to executable once exited */
 	if (!lock_held_by_current_thread (&file_sys_lock))
-  		lock_acquire (&file_sys_lock);
-  	if (cur->executable)
-	  {
-		file_allow_write (cur->executable);
-		file_close (cur->executable);
-	  }
-  	lock_release (&file_sys_lock);
+		lock_acquire (&file_sys_lock);
+	if (parent->executable)
+	{
+		file_allow_write (parent->executable);
+		file_close (parent->executable);
+	}
+	lock_release (&file_sys_lock);
 
 	/* Print exiting message */
 	printf ("%s: exit(%i)\n", cur->name, exit_status);
@@ -242,8 +240,6 @@ void process_exit (void)
 		e = list_remove (e);
 		free (child);
 	}
-
-	struct thread *parent = cur->process_w.parent_t;
 
 	if (is_thread (parent) && parent->status != THREAD_DYING)
 		update_child_status (parent, cur->tid, exit_status);
@@ -358,7 +354,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
-bool load (const char *file_name, void (**eip) (void), void **esp)
+bool load (const char *file_name, char *args, void (**eip) (void), void **esp)
 {
 	struct thread *t = thread_current ();
 	struct Elf32_Ehdr ehdr;
@@ -456,6 +452,9 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
 
 	/* Start address. */
 	*eip = (void (*) (void)) ehdr.e_entry;
+
+	if (push_arguments (esp, file_name, args) != 0)
+		goto done;
 
 	success = true;
 
@@ -623,11 +622,8 @@ static bool install_page (void *upage, void *kpage, bool writable)
 /* Pushes the arguments of the newly created user program on the stack
   using IF_.ESP as the stack pointer, ending in 0 as the return address.
   The arguments string is passed in ARGUMENTS and parsed using strtok_r(). */
-static void push_arguments (struct intr_frame *if_, char *command_line,
-                            char *arguments)
+static int push_arguments (void **esp, const char *file_name, char *args)
 {
-	/* FILE_NAME is the first token and it should also be put on the stack */
-
 	int argc = 0; /* number of arguments */
 
 	/* Initially addresses of arguments in the stack */
@@ -636,55 +632,73 @@ static void push_arguments (struct intr_frame *if_, char *command_line,
 	/* Memory used so far by arguments each ending in '\0' */
 	int used_memory = 0;
 
-	char *token = strtok_r (command_line, " ", &arguments);
+	/* Push file_name first on the stack */
+
+	int token_memory = sizeof (char) * strlen (file_name) + 1;
+	if (used_memory + token_memory > ARGS_MAX_SIZE || argc + 1 > ARGS_MAX_COUNT)
+	{
+		return -1;
+	}
+	*esp -= sizeof (char);
+	memset (*esp, 0, sizeof (char));
+	*esp -= (token_memory - 1);
+	arg_address[argc++] = *esp;
+	memcpy (*esp, file_name, (token_memory - 1));
+	used_memory += token_memory;
+
+	/* Tokenize and push the rest of arguments on the stack */
+
+	char *save_ptr;
+	char *token = strtok_r (args, " ", &save_ptr);
 
 	while (token != NULL)
 	{
 		int token_memory = sizeof (char) * strlen (token) + 1;
 		if (used_memory + token_memory > ARGS_MAX_SIZE || argc + 1 > ARGS_MAX_COUNT)
 		{
-			// TODO: Signal invalid arguments size
-			break;
+			return -1;
 		}
-		if_->esp -= sizeof (char);
-		memset (if_->esp, 0, sizeof (char));
+		*esp -= sizeof (char);
+		memset (*esp, 0, sizeof (char));
 
-		if_->esp -= (token_memory - 1);
-		arg_address[argc++] = if_->esp;
-		memcpy (if_->esp, token, (token_memory - 1));
+		*esp -= (token_memory - 1);
+		arg_address[argc++] = *esp;
+		memcpy (*esp, token, (token_memory - 1));
 
 		used_memory += token_memory;
 
-		token = strtok_r (NULL, " ", &arguments);
+		token = strtok_r (NULL, " ", &save_ptr);
 	}
 
-	if_->esp = last_address_alligned (if_->esp) - sizeof (char *) * (argc + 1);
+	*esp = last_address_alligned (*esp) - sizeof (char *) * (argc + 1);
 
 	for (int i = 0; i < argc + 1; i++)
 	{
 		if (i == argc)
 		{
-			memset (if_->esp + i * sizeof (char *), 0, sizeof (char *));
+			memset (*esp + i * sizeof (char *), 0, sizeof (char *));
 			continue;
 		}
-		memcpy (if_->esp + i * sizeof (char *), &arg_address[i], sizeof (char *));
+		memcpy (*esp + i * sizeof (char *), &arg_address[i], sizeof (char *));
 	}
 
-	char **argv = if_->esp;
-	if_->esp -= sizeof (char **);
-	memcpy (if_->esp, &argv, sizeof (char **));
+	char **argv = *esp;
+	*esp -= sizeof (char **);
+	memcpy (*esp, &argv, sizeof (char **));
 
-	if_->esp -= sizeof (int);
-	memcpy (if_->esp, &argc, sizeof (int));
+	*esp -= sizeof (int);
+	memcpy (*esp, &argc, sizeof (int));
 
 	/* return address 0 */
-	if_->esp -= sizeof (void (*) (void));
-	memset (if_->esp, 0, sizeof (void (*) (void)));
+	*esp -= sizeof (void (*) (void));
+	memset (*esp, 0, sizeof (void (*) (void)));
 
 	/* Testing should work after system calls are implemented */
 #ifdef DEBUG
-	hex_dum p (0, if _->esp, init_esp - if_->esp, 1);
+	hex_dump (0, *esp, PHYS_BASE - *esp, 1);
 #endif
+
+	return 0;
 }
 
 /* Called by child process to update its status inside the children list of
@@ -697,7 +711,6 @@ static void update_child_status (struct thread *parent, pid_t child_pid,
 	struct child_status *child;
 	struct list *children = &parent->process_w.children_processes;
 
-	enum intr_level old_level = intr_disable ();
 	// REVIEW: Can we use locks instead of interrupt disable
 
 	for (e = list_begin (children); e != list_end (children); e = list_next (e))
@@ -710,6 +723,4 @@ static void update_child_status (struct thread *parent, pid_t child_pid,
 			break;
 		}
 	}
-
-	intr_set_level (old_level);
 }

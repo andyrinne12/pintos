@@ -1,8 +1,8 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
 
-#include "../threads/thread.h"
 #include "../threads/interrupt.h"
+#include "../threads/thread.h"
 #include <list.h>
 
 #define EXIT_FAIL -1
@@ -18,7 +18,7 @@
 #define COMPUTE_ARG_2(x) ((x) + (2 * ARG_STEP))
 #define COMPUTE_ARG_3(x) ((x) + (3 * ARG_STEP))
 
-typedef void (* syscall_func_t)(struct intr_frame *f);
+typedef void (*syscall_func_t) (struct intr_frame *f);
 
 /* File system lock */
 struct lock file_sys_lock;
@@ -26,12 +26,13 @@ struct lock file_sys_lock;
 /* structure for the file descriptors */
 struct file_descriptor
 {
-  int num;
-  tid_t owner;
-  struct file *file_struct;
-  struct list_elem elem;
+	int num;
+	tid_t owner;
+	struct file *file_struct;
+	struct list_elem elem;
 };
 
 void syscall_init (void);
+void exit_fail (void);
 
 #endif /* userprog/syscall.h */
