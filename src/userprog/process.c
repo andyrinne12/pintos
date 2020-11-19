@@ -76,13 +76,15 @@ tid_t process_execute (const char *file_name)
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (cmd_line.name, PRI_DEFAULT, start_process, &cmd_line);
 
-	if (tid == TID_ERROR)
+	if (tid == TID_ERROR){
 		palloc_free_page (fn_copy);
-
+    return EXIT_FAIL;
+  }
 	struct child_status *child = malloc (sizeof (struct child_status));
 
-	if (child == NULL)
+	if (child == NULL){
 		return EXIT_FAIL;
+  }
 
 	child->pid = tid;
 	list_push_back (&thread_current ()->process_w.children_processes,
@@ -192,7 +194,6 @@ int process_wait (tid_t child_tid)
 			list_remove (&child_s->child_elem);
 			int status = child_s->exit_status;
 			free (child_s);
-
 			return status;
 		}
 	}

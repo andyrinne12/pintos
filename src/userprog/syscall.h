@@ -27,12 +27,13 @@ struct lock file_sys_lock;
 struct file_descriptor
 {
 	int num;
-	tid_t owner;
+	pid_t owner;
 	struct file *file_struct;
 	struct list_elem elem;
 };
 
 void syscall_init (void);
 void exit_fail (void);
+void close_all_files (void);
 
 #endif /* userprog/syscall.h */

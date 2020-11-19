@@ -147,7 +147,8 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
   thread_current ()->process_w.exit_status = EXIT_FAIL;
-  
+  close_all_files();
+
   /*
    * Page fault in the kernel merely sets the interupt frame eax to 0xffffffff
    * and copies the old value into eip

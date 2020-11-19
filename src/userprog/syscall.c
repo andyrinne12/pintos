@@ -37,24 +37,23 @@ static bool is_valid_string (const char *str);
 static void syscall_handler (struct intr_frame *);
 
 /* System calls functions */
-static void halt(struct intr_frame *f);
-static void exit(struct intr_frame *f);
-static void exec(struct intr_frame *f);
-static void wait(struct intr_frame *f);
-static void create(struct intr_frame *f);
-static void remove(struct intr_frame *f);
-static void open(struct intr_frame *f);
-static void filesize(struct intr_frame *f);
-static void read(struct intr_frame *f);
-static void write(struct intr_frame *f);
-static void seek(struct intr_frame *f);
-static void tell(struct intr_frame *f);
-static void close(struct intr_frame *f);
+static void halt (struct intr_frame *f);
+static void exit (struct intr_frame *f);
+static void exec (struct intr_frame *f);
+static void wait (struct intr_frame *f);
+static void create (struct intr_frame *f);
+static void remove (struct intr_frame *f);
+static void open (struct intr_frame *f);
+static void filesize (struct intr_frame *f);
+static void read (struct intr_frame *f);
+static void write (struct intr_frame *f);
+static void seek (struct intr_frame *f);
+static void tell (struct intr_frame *f);
+static void close (struct intr_frame *f);
 
 /* Helpers */
 static void *find_file (int fd);
 static void close_open_file (int fd);
-static void close_all_files(void);
 
 /* System calls array */
 static syscall_func_t syscall_func[MAX_SYSCALL_SIZE];
@@ -68,16 +67,16 @@ void syscall_init (void)
 	syscall_func[SYS_HALT] = halt;
 	syscall_func[SYS_EXIT] = exit;
 	syscall_func[SYS_EXEC] = exec;
-  	syscall_func[SYS_WAIT] = wait;
-  	syscall_func[SYS_CREATE] = create;
-  	syscall_func[SYS_REMOVE] = remove;
-  	syscall_func[SYS_OPEN] = open;
-  	syscall_func[SYS_FILESIZE] = filesize;
-  	syscall_func[SYS_READ] = read;
-  	syscall_func[SYS_WRITE] = write;
-  	syscall_func[SYS_SEEK] = seek;
-  	syscall_func[SYS_TELL] = tell;
-  	syscall_func[SYS_CLOSE] = close;
+	syscall_func[SYS_WAIT] = wait;
+	syscall_func[SYS_CREATE] = create;
+	syscall_func[SYS_REMOVE] = remove;
+	syscall_func[SYS_OPEN] = open;
+	syscall_func[SYS_FILESIZE] = filesize;
+	syscall_func[SYS_READ] = read;
+	syscall_func[SYS_WRITE] = write;
+	syscall_func[SYS_SEEK] = seek;
+	syscall_func[SYS_TELL] = tell;
+	syscall_func[SYS_CLOSE] = close;
 }
 
 static void syscall_handler (struct intr_frame *f)
@@ -86,68 +85,65 @@ static void syscall_handler (struct intr_frame *f)
 
 	/* Check if system call number is valid */
 	if (sys_call_number > SYS_CLOSE)
-	  {
+	{
 		exit_fail ();
 		return;
-	  }
+	}
 
 	/* Check if the arguments passed are valid */
-	if (!(is_valid_address(COMPUTE_ARG_1(f->esp))) ||
-		!(is_valid_address(COMPUTE_ARG_2(f->esp))) ||
-		!(is_valid_address(COMPUTE_ARG_3(f->esp))))
-	  {
+	if (!(is_valid_address (COMPUTE_ARG_1 (f->esp))) ||
+	    !(is_valid_address (COMPUTE_ARG_2 (f->esp))) ||
+	    !(is_valid_address (COMPUTE_ARG_3 (f->esp))))
+	{
 		exit_fail ();
 		return;
-	  }
+	}
 
 	/* Execute the system call */
 	syscall_func[sys_call_number](f);
 }
 
 /* Terminates Pintos */
-static void halt(struct intr_frame *f UNUSED)
-{
-  	shutdown_power_off ();
-}
+static void halt (struct intr_frame *f UNUSED) { shutdown_power_off (); }
 
 /* Terminates the current user program, sending its exit status to the kernel.*/
-static void exit(struct intr_frame *f)
+static void exit (struct intr_frame *f)
 {
-  	int status = load_number (COMPUTE_ARG_1 (f->esp));
-  	close_all_files();
-  	thread_current()->process_w.exit_status = status;
-  	thread_exit ();
+	int status = load_number (COMPUTE_ARG_1 (f->esp));
+	close_all_files ();
+	thread_current ()->process_w.exit_status = status;
+	thread_exit ();
 }
 
 /* Function to be called for immediate exit fail */
-void exit_fail(void)
+void exit_fail (void)
 {
-  	close_all_files();
-  	thread_current()->process_w.exit_status = EXIT_FAIL;
-  	thread_exit ();
+	close_all_files ();
+	thread_current ()->process_w.exit_status = EXIT_FAIL;
+	thread_exit ();
 }
 
 /* Runs the executable whose name is given in cmd line */
-static void exec(struct intr_frame *f)
+static void exec (struct intr_frame *f)
 {
-  	char *cmd_line = load_address (COMPUTE_ARG_1 (f->esp));
-  	f->eax = process_execute(cmd_line);
+	char *cmd_line = load_address (COMPUTE_ARG_1 (f->esp));
+	f->eax = process_execute (cmd_line);
 }
 
 /* Waits for a child process pid and retrieves the child’s exit status. */
-static void wait(struct intr_frame *f)
+static void wait (struct intr_frame *f)
 {
-  	pid_t pid = load_number (COMPUTE_ARG_1 (f->esp));
-  	f->eax = process_wait(pid);
+	pid_t pid = load_number (COMPUTE_ARG_1 (f->esp));
+	f->eax = process_wait (pid);
 }
 
 /* Creates a new file called file initially initial size bytes in size.
  * Returns true if successful, false otherwise.
  * Creating a new file does not open it! */
-static void create(struct intr_frame *f)
+static void create (struct intr_frame *f)
 {
-  const char *file = load_address (COMPUTE_ARG_1 (f->esp));
-  unsigned initial_size = *(unsigned *) (COMPUTE_ARG_2 (f->esp));
+	const char *file = load_address (COMPUTE_ARG_1 (f->esp));
+	unsigned initial_size = *(unsigned *) (COMPUTE_ARG_2 (f->esp));
 	bool result;
 
 	/* Check validity of file string and exit immediately if false */
@@ -160,33 +156,33 @@ static void create(struct intr_frame *f)
 	lock_acquire (&file_sys_lock);
 	result = filesys_create (file, initial_size);
 	lock_release (&file_sys_lock);
-  	f->eax = result;
+	f->eax = result;
 }
 
 /* Deletes the file called file. Returns true if successful, false otherwise. */
-static void remove(struct intr_frame *f)
+static void remove (struct intr_frame *f)
 {
-  	const char *file = load_address (COMPUTE_ARG_1 (f->esp));
+	const char *file = load_address (COMPUTE_ARG_1 (f->esp));
 	bool result;
 
 	/* Check validity of file string and exit immediately if false */
 	if (!is_valid_string (file))
-	  {
+	{
 		f->eax = false;
 		return;
-	  }
+	}
 
 	lock_acquire (&file_sys_lock);
 	result = filesys_remove (file);
 	lock_release (&file_sys_lock);
-  	f->eax = result;
+	f->eax = result;
 }
 
 /* Opens the file called "file". Returns a non negative integer handle called
  * a “file descriptor” (fd),or -1 if the file could not be opened */
-static void open(struct intr_frame *f)
+static void open (struct intr_frame *f)
 {
-  	const char *file = load_address (COMPUTE_ARG_1 (f->esp));
+	const char *file = load_address (COMPUTE_ARG_1 (f->esp));
 	struct file_descriptor *fd;
 	struct file *new_file;
 
@@ -217,19 +213,19 @@ static void open(struct intr_frame *f)
 
 	fd = calloc (1, sizeof (*fd));
 	fd->num = ++thread_current ()->fd_count;
-	fd->owner = thread_current ()->tid;
+	fd->owner = thread_current()->tid;
 	fd->file_struct = new_file;
 	list_push_back (&thread_current ()->files_opened, &fd->elem);
 
 	lock_release (&file_sys_lock);
-  	f->eax = fd->num;
+	f->eax = fd->num;
 }
 
 /* Returns the size, in bytes, of the file open as fd */
-static void filesize(struct intr_frame *f)
+static void filesize (struct intr_frame *f)
 {
-  	int fd = *(int *) (COMPUTE_ARG_1 (f->esp));
-  	struct file_descriptor *descriptor;
+	int fd = *(int *) (COMPUTE_ARG_1 (f->esp));
+	struct file_descriptor *descriptor;
 	int size = -1;
 	lock_acquire (&file_sys_lock);
 
@@ -241,58 +237,58 @@ static void filesize(struct intr_frame *f)
 		size = file_length (descriptor->file_struct);
 
 	lock_release (&file_sys_lock);
-  	f->eax = size;
+	f->eax = size;
 }
 
 /* Reads size bytes from the file open as fd into buffer. */
-static void read(struct intr_frame *f)
+static void read (struct intr_frame *f)
 {
-  	int fd = load_number (COMPUTE_ARG_1 (f->esp));
-  	void *buffer = load_address (COMPUTE_ARG_2 (f->esp));
-  	unsigned size = load_number (COMPUTE_ARG_3 (f->esp));
+	int fd = load_number (COMPUTE_ARG_1 (f->esp));
+	void *buffer = load_address (COMPUTE_ARG_2 (f->esp));
+	unsigned size = load_number (COMPUTE_ARG_3 (f->esp));
 
-  	/* Check validity of buffer and exit immediately if false */
-  	if (!is_valid_buffer (buffer, size))
-		exit_fail();
+	/* Check validity of buffer and exit immediately if false */
+	if (!is_valid_buffer (buffer, size))
+		exit_fail ();
 
-  	if (fd == STDIN_FILENO)
+	if (fd == STDIN_FILENO)
 	{
-	  /* The characters that we are reading have to fill the buffer*/
-	  uint8_t *copy_buffer = (uint8_t *) buffer;
-	  for (unsigned i = 0; i < size; i++)
-		copy_buffer[i] = input_getc ();
-	  f->eax = size;
-	  return;
+		/* The characters that we are reading have to fill the buffer*/
+		uint8_t *copy_buffer = (uint8_t *) buffer;
+		for (unsigned i = 0; i < size; i++)
+			copy_buffer[i] = input_getc ();
+		f->eax = size;
+		return;
 	}
 
-  	/* Extract the file */
-  	lock_acquire (&file_sys_lock);
-  	struct file_descriptor *descriptor = find_file (fd);
+	/* Extract the file */
+	lock_acquire (&file_sys_lock);
+	struct file_descriptor *descriptor = find_file (fd);
 
-  	if (!descriptor)
-	  {
+	if (!descriptor)
+	{
 		lock_release (&file_sys_lock);
 		exit_fail ();
 		return;
-	  }
+	}
 
-  	int no_of_read_characters = file_read (descriptor->file_struct, buffer, size);
-  	lock_release (&file_sys_lock);
+	int no_of_read_characters = file_read (descriptor->file_struct, buffer, size);
+	lock_release (&file_sys_lock);
 
-  	f->eax = no_of_read_characters;
+	f->eax = no_of_read_characters;
 }
 
 /* Writes size bytes from buffer to the open file fd. Returns the number of
  * bytes actually written. */
-static void write(struct intr_frame *f)
+static void write (struct intr_frame *f)
 {
-  	int fd = load_number (COMPUTE_ARG_1 (f->esp));
-  	void *buffer = load_address (COMPUTE_ARG_2 (f->esp));
-  	unsigned size = load_number (COMPUTE_ARG_3 (f->esp));
+	int fd = load_number (COMPUTE_ARG_1 (f->esp));
+	void *buffer = load_address (COMPUTE_ARG_2 (f->esp));
+	unsigned size = load_number (COMPUTE_ARG_3 (f->esp));
 
 	/* Check validity of buffer and exit immediately if false */
 	if (!is_valid_buffer (buffer, size))
-		exit_fail();
+		exit_fail ();
 
 	/* Check if write to console is needed and perform it */
 	if (fd == STDOUT_FILENO)
@@ -303,27 +299,27 @@ static void write(struct intr_frame *f)
 	}
 
 	/* Find the corresponding file and write */
-    lock_acquire (&file_sys_lock);
+	lock_acquire (&file_sys_lock);
 
 	struct file_descriptor *descriptor = find_file (fd);
 
 	if (!descriptor)
-	  {
+	{
 		lock_release (&file_sys_lock);
 		exit_fail ();
 		return;
-	  }
+	}
 
 	int bytes_written = file_write (descriptor->file_struct, buffer, size);
 	lock_release (&file_sys_lock);
 
-  	f->eax = bytes_written;
+	f->eax = bytes_written;
 }
 
 /* Changes the next byte to be read or written in open file fd to position */
-static void seek(struct intr_frame *f)
+static void seek (struct intr_frame *f)
 {
-  	int fd = load_number (COMPUTE_ARG_1 (f->esp));
+	int fd = load_number (COMPUTE_ARG_1 (f->esp));
 	unsigned position = load_number (COMPUTE_ARG_2 (f->esp));
 
 	struct file_descriptor *descriptor;
@@ -338,9 +334,9 @@ static void seek(struct intr_frame *f)
 }
 
 /* Returns the position of the next byte to be read / written in open file fd */
-static void tell(struct intr_frame *f)
+static void tell (struct intr_frame *f)
 {
-  	int fd = load_number (COMPUTE_ARG_1 (f->esp));
+	int fd = load_number (COMPUTE_ARG_1 (f->esp));
 	int position = 0;
 	struct file_descriptor *descriptor;
 	lock_acquire (&file_sys_lock);
@@ -351,14 +347,14 @@ static void tell(struct intr_frame *f)
 		position = file_tell (descriptor->file_struct);
 	}
 	lock_release (&file_sys_lock);
-  	f->eax = position;
+	f->eax = position;
 }
 
 /* Exiting or terminating a process implicitly closes all its open file
  * descriptors, as if by calling this function for each one. */
-static void close(struct intr_frame *f)
+static void close (struct intr_frame *f)
 {
-  	int fd = load_number (COMPUTE_ARG_1 (f->esp));
+	int fd = load_number (COMPUTE_ARG_1 (f->esp));
 	struct file_descriptor *descriptor;
 	lock_acquire (&file_sys_lock);
 	descriptor = find_file (fd);
@@ -390,32 +386,32 @@ static void *find_file (int fd)
 /* Helper function which closes the requested file and frees resources. */
 static void close_open_file (int fd)
 {
-	struct file_descriptor *descriptor = find_file(fd);
+	struct file_descriptor *descriptor = find_file (fd);
 
-	list_remove(&descriptor->elem);
-  	file_close (descriptor->file_struct);
+	list_remove (&descriptor->elem);
+	file_close (descriptor->file_struct);
 	free (descriptor);
 }
 
 /* When exiting, make sure all files belonging to this thread are closed */
-static void close_all_files(void)
+void
+close_all_files (void)
 {
-  	struct thread *curr = thread_current ();
+	struct thread *curr = thread_current ();
 
-  	struct list_elem *e;
-		if(!lock_held_by_current_thread(&file_sys_lock))
-  		lock_acquire (&file_sys_lock);
+	struct list_elem *e;
+	if (!lock_held_by_current_thread (&file_sys_lock))
+		lock_acquire (&file_sys_lock);
 
-		while (!list_empty (&curr->files_opened))
-  	  {
-	  	e = list_begin (&curr->files_opened);
-	  	int fd = list_entry (e,
-	  	struct file_descriptor, elem)->num;
-	  	struct file_descriptor *descriptor = find_file (fd);
-	  	if (descriptor != NULL && curr->tid == descriptor->owner)
+	while (!list_empty (&curr->files_opened))
+	{
+		e = list_begin (&curr->files_opened);
+		int fd = list_entry (e, struct file_descriptor, elem)->num;
+		struct file_descriptor *descriptor = find_file (fd);
+		if (descriptor != NULL && curr->tid == descriptor->owner)
 			close_open_file (fd);
-	  }
-  	lock_release (&file_sys_lock);
+	}
+	lock_release (&file_sys_lock);
 }
 
 /* Reads a byte at user virtual address UADDR.
@@ -458,9 +454,10 @@ static uint32_t load_number (void *vaddr)
 {
 	if (get_user ((uint8_t *) vaddr) == -1)
 	{
-		exit_fail();
+		exit_fail ();
 	}
-	return *((uint32_t *) vaddr);
+
+return *((uint32_t *) vaddr);
 }
 
 /* Receives a memory address and validates it.
@@ -470,7 +467,7 @@ static char *load_address (void *vaddr)
 {
 	if (get_user ((uint8_t *) vaddr) == -1)
 	{
-		exit_fail();
+		exit_fail ();
 		return NULL;
 	}
 	return *((char **) vaddr);
