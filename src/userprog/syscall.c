@@ -327,9 +327,8 @@ static void seek (struct intr_frame *f)
 
 	descriptor = find_file (fd);
 	if (descriptor != NULL)
-	{
 		file_seek (descriptor->file_struct, position);
-	}
+
 	lock_release (&file_sys_lock);
 }
 
@@ -343,9 +342,8 @@ static void tell (struct intr_frame *f)
 
 	descriptor = find_file (fd);
 	if (descriptor != NULL)
-	{
 		position = file_tell (descriptor->file_struct);
-	}
+
 	lock_release (&file_sys_lock);
 	f->eax = position;
 }
@@ -359,10 +357,7 @@ static void close (struct intr_frame *f)
 	lock_acquire (&file_sys_lock);
 	descriptor = find_file (fd);
 	if (descriptor != NULL && thread_current ()->tid == descriptor->owner)
-	{
-		/* close the open file */
 		close_open_file (fd);
-	}
 	lock_release (&file_sys_lock);
 }
 
@@ -453,11 +448,9 @@ static bool put_user (uint8_t *udst, uint8_t byte)
 static uint32_t load_number (void *vaddr)
 {
 	if (get_user ((uint8_t *) vaddr) == -1)
-	{
 		exit_fail ();
-	}
 
-return *((uint32_t *) vaddr);
+	return *((uint32_t *) vaddr);
 }
 
 /* Receives a memory address and validates it.

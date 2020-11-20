@@ -98,9 +98,8 @@ tid_t process_execute (const char *file_name)
 
 	enum intr_level old_level = intr_disable ();
 	if (is_thread (child_t) && child_t->status != THREAD_DYING)
-	{
 		sema_down (&child_t->process_w.loaded_sema);
-	}
+
 	intr_set_level (old_level);
 
 	/* By this time the child process should have communicated its loaded status
@@ -639,9 +638,8 @@ static int push_arguments (void **esp, const char *file_name, char *args)
 
 	int token_memory = sizeof (char) * strlen (file_name) + 1;
 	if (used_memory + token_memory > ARGS_MAX_SIZE || argc + 1 > ARGS_MAX_COUNT)
-	{
 		return -1;
-	}
+
 	*esp -= sizeof (char);
 	memset (*esp, 0, sizeof (char));
 	*esp -= (token_memory - 1);
@@ -658,9 +656,8 @@ static int push_arguments (void **esp, const char *file_name, char *args)
 	{
 		int token_memory = sizeof (char) * strlen (token) + 1;
 		if (used_memory + token_memory > ARGS_MAX_SIZE || argc + 1 > ARGS_MAX_COUNT)
-		{
 			return -1;
-		}
+
 		*esp -= sizeof (char);
 		memset (*esp, 0, sizeof (char));
 

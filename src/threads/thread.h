@@ -121,7 +121,7 @@ struct thread
 	  struct semaphore loaded_sema;         /* Process loaded semaphore */
 	  struct semaphore finished_sema;       /* Process finished semaphore */
 	  struct list children_processes;       /* Children processes */
-		int exit_status;
+	  int exit_status;
 	} process_w;						    /* Process wrapper of this thread */
 #endif
 

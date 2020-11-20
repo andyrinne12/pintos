@@ -9,6 +9,9 @@
 #define LOADED_SUCCESS 0
 #define LOADED_FAILED -1
 
+/* Computes the next adress where a byte should start */
+#define last_address_alligned(X) (X - (uint32_t) X % 4)
+
 typedef int pid_t;
 
 struct child_status
@@ -17,9 +20,6 @@ struct child_status
   int exit_status;                      /* Process exit status */
   struct list_elem child_elem;          /* Children list elem */
 };
-
-/* Computes the next adress where a byte should start */
-#define last_address_alligned(X) (X - (uint32_t) X % 4)
 
 pid_t process_execute (const char *file_name);
 int process_wait (pid_t child_pid);
