@@ -106,7 +106,7 @@ struct thread
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
-//#ifdef USERPROG
+#ifdef USERPROG
 
   	struct list files_opened;			/* List of open files */
   	struct file *executable;			/* Executable file of the thread */
@@ -122,9 +122,8 @@ struct thread
 	  struct semaphore finished_sema;       /* Process finished semaphore */
 	  struct list children_processes;       /* Children processes */
 		int exit_status;
-//	  struct lock child_list_lock;          /* Children list lock */
 	} process_w;						    /* Process wrapper of this thread */
-//#endif
+#endif
 
   	int nice;
   	int recent_cpu;

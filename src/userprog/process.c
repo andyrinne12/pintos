@@ -66,25 +66,26 @@ tid_t process_execute (const char *file_name)
 
 	cmd_line.name = strtok_r (fn_copy, " ", &cmd_line.args);
 
-  /* Deny writes to executable while the process is still running */
-  lock_acquire (&file_sys_lock);
-  thread_current()->executable = filesys_open (cmd_line.name);
-  if (thread_current()->executable)
-    file_deny_write (thread_current()->executable);
-  lock_release (&file_sys_lock);
+  	/* Deny writes to executable while the process is still running */
+  	lock_acquire (&file_sys_lock);
+  	thread_current()->executable = filesys_open (cmd_line.name);
+  	if (thread_current()->executable)
+    	file_deny_write (thread_current()->executable);
+  	lock_release (&file_sys_lock);
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (cmd_line.name, PRI_DEFAULT, start_process, &cmd_line);
 
-	if (tid == TID_ERROR){
+	if (tid == TID_ERROR)
+	{
 		palloc_free_page (fn_copy);
-    return EXIT_FAIL;
-  }
+    	return EXIT_FAIL;
+  	}
+
 	struct child_status *child = malloc (sizeof (struct child_status));
 
-	if (child == NULL){
+	if (child == NULL)
 		return EXIT_FAIL;
-  }
 
 	child->pid = tid;
 	list_push_back (&thread_current ()->process_w.children_processes,
@@ -207,7 +208,7 @@ int process_wait (tid_t child_tid)
 void process_exit (void)
 {
 	struct thread *cur = thread_current ();
-  struct thread *parent = cur->process_w.parent_t;
+  	struct thread *parent = cur->process_w.parent_t;
 	uint32_t *pd;
 
 	enum intr_level old_level = intr_disable ();
@@ -225,6 +226,7 @@ void process_exit (void)
 	/* Allow write back to executable once exited */
 	if (!lock_held_by_current_thread (&file_sys_lock))
 		lock_acquire (&file_sys_lock);
+
 	if (parent->executable)
 	{
 		file_allow_write (parent->executable);
